@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Light Left</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Atkinson+Hyperlegible:wght@400;700&family=DM+Mono:wght@400;500&display=swap">
+<meta name="description" content="The clock that follows the sun: light left today, golden hour, the night sky and sun alarms for anywhere in the UK.">
+<meta name="theme-color" content="#0B1230">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Light Left">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}
+/* clear the phone's status bar when installed on the home screen */
+.skyui,.ninner{padding-top:calc(14px + env(safe-area-inset-top,0px))!important}
+#alarmView .wrap,#peopleView .wrap{padding-top:calc(20px + env(safe-area-inset-top,0px))!important}
+.legal{position:absolute;right:max(14px,env(safe-area-inset-right,0px));bottom:10px;font:12px system-ui,sans-serif;opacity:.6;color:var(--muted)}
+</style>
+</head>
+<body>
+<style>
+/* Layout: two tabs. Sky is a full-screen living scene with the time on top; Alarms is a plain list. Sky colours are painted from the real sun, so the scene is its own theme; the Alarms tab follows light/dark. */
+:root{
+  --bg:#F3F4F1; --surface:#FFFFFF; --fg:#1B2028; --muted:#5F6772; --rule:#DFE2DD; --on:#2E8B57; --gold:#C7861C;
+  --bar:#FFFFFF;
+  --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",Verdana,system-ui,sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0E1218;--surface:#171C24;--fg:#E8EBEF;--muted:#9AA3AE;--rule:#29303B;--on:#4FBF83;--gold:#E9AE4C;--bar:#12161D;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0E1218;--surface:#171C24;--fg:#E8EBEF;--muted:#9AA3AE;--rule:#29303B;--on:#4FBF83;--gold:#E9AE4C;--bar:#12161D;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);display:flex;flex-direction:column;overflow:hidden}
+.view{flex:1;min-height:0;overflow-y:auto;position:relative}
+.view[hidden]{display:none!important}
+/* sky view */
+#skyView{color:var(--skyfg,#fff);overflow:hidden}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+.skyui{position:relative;height:100%;display:flex;flex-direction:column;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));padding-block:14px 18px;max-width:640px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;align-items:center}
+select{font:inherit;font-size:15px;padding:8px 32px 8px 14px;border-radius:999px;border:1.5px solid currentColor;background:rgba(255,255,255,.08);color:inherit;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+select option{color:#1B2028;background:#fff}
+.time{font-family:var(--display);font-weight:300;font-size:clamp(88px,28vw,170px);line-height:.88;letter-spacing:-.045em;margin:20px 0 0;font-variant-numeric:tabular-nums}
+.date{font-family:var(--mono);font-size:14px;opacity:.85;margin:8px 0 0}
+.headline{font-family:var(--display);font-weight:700;font-size:clamp(22px,6vw,30px);margin:18px 0 0;line-height:1.15}
+.say{margin:4px 0 0;opacity:.9;font-size:16px;max-width:36ch}
+.spacer{flex:1}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:8px 12px;display:flex;flex-direction:column;min-width:0;flex:1}
+.pill small{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;opacity:.8}
+.pill b{font-family:var(--display);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dark .pill{background:rgba(0,0,0,.28);border-color:rgba(255,255,255,.18)}
+.note:not(:empty){align-self:center;background:rgba(255,255,255,.55);padding:5px 12px;border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.dark .note:not(:empty){background:rgba(0,0,0,.3)}
+.note{font-size:13px;margin:10px 0 0;text-align:center}
+/* alarms view */
+#alarmView .wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 30px;display:flex;flex-direction:column;gap:14px}
+.ahead{display:flex;justify-content:space-between;align-items:center}
+.ahead h1{font-family:var(--display);font-weight:800;font-size:34px;margin:0}
+.add{font:700 15px var(--body);background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:10px 16px;cursor:pointer}
+.hint{font-size:14px;color:var(--muted);margin:0}
+.list{background:var(--surface);border:1px solid var(--rule);border-radius:18px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--rule)}
+.item:first-child{border-top:0}
+.item button.open{all:unset;cursor:pointer;display:flex;flex-direction:column;min-width:0}
+.item .at{font-family:var(--display);font-weight:300;font-size:44px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.item .at span{font-size:.45em;font-weight:500;margin-left:2px}
+.item .lbl{font-size:14px;color:var(--muted);margin-top:4px}
+.item.off .at{opacity:.45}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.switch{position:relative;width:54px;height:32px;border-radius:16px;background:var(--rule);border:0;cursor:pointer;transition:background .2s;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--on)}
+.switch[aria-checked="true"]::after{transform:translateX(22px)}
+.test{align-self:center;font:600 14px var(--body);background:none;border:1px solid var(--rule);color:var(--fg);border-radius:999px;padding:8px 16px;cursor:pointer}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--fg);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+.sheet h2{font-family:var(--display);font-size:22px;margin:0}
+.lab{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:block}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg button{font:600 14px var(--body);padding:10px 6px;border-radius:12px;border:1px solid var(--rule);background:var(--bg);color:var(--fg);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.sheet input[type=time]{font:300 44px var(--display);width:100%;padding:6px 12px;border-radius:12px;border:1px solid var(--rule);background:var(--bg);color:var(--fg)}
+.preview{font-size:15px;color:var(--muted);margin:0}
+.preview b{color:var(--fg)}
+.sheet .row{display:flex;gap:10px}
+.sheet .row button{flex:1;height:50px;border-radius:999px;font:700 16px var(--body);cursor:pointer;border:0}
+.save{background:var(--on);color:#fff}.cancel{background:var(--bg);color:var(--fg);border:1px solid var(--rule)!important}.del{background:none;color:#C2412D;border:0;font:600 15px var(--body);cursor:pointer;align-self:center}
+/* tab bar */
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--bar);border-top:1px solid var(--rule);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.tabs button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0 9px;font:600 12px var(--body);color:var(--muted)}
+.tabs .ic{display:grid;place-items:center;width:56px;height:30px;border-radius:999px;transition:background .25s}
+.tabs .ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s}
+.tabs button[aria-selected="true"] .ic{background:color-mix(in srgb,var(--gold) 22%,transparent)}
+.tabs button[aria-selected="true"] .ic svg{stroke-width:2;transform:scale(1.06)}
+.tabs button[aria-selected="true"]{font-weight:700}
+.tabs button[aria-selected="true"]{color:var(--fg)}
+button:focus-visible,select:focus-visible,input:focus-visible,.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+/* ringing */
+.ring{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;background:linear-gradient(180deg,#F2A65A,#FBE1B6);color:#341C08}
+.ring .big{font-family:var(--display);font-weight:300;font-size:clamp(84px,27vw,150px);line-height:.9;font-variant-numeric:tabular-nums}
+.ring h2{font-family:var(--display);font-size:30px;margin:0}
+.ring p{margin:0;max-width:30ch;font-size:17px}
+.ring .btns{display:flex;gap:12px}
+.ring button{height:58px;padding:0 30px;border-radius:999px;border:0;font:700 17px var(--display);cursor:pointer}
+.ring .stop{background:#341C08;color:#FBE1B6}.ring .snooze{background:rgba(52,28,8,.12);color:#341C08}
+/* people + extras */
+#peopleView .wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 30px;display:flex;flex-direction:column;gap:14px}
+.plist{display:flex;flex-direction:column;gap:12px}
+.pcard{border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px;color:#fff;position:relative;overflow:hidden}
+.pcard.day{background:linear-gradient(160deg,#5E9BD6,#9CC3E8)}.pcard.dusk{background:linear-gradient(160deg,#3B3F78,#C98A7E)}.pcard.night{background:linear-gradient(160deg,#0B1230,#22305F)}
+.pcard.day{color:#10223A}
+.ptop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ptop b{font-family:var(--display);font-size:20px;display:block}
+.ptop small{font-size:14px;opacity:.85}
+.pedit{all:unset;cursor:pointer;font:600 13px var(--body);padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.2)}
+.ptime{font-family:var(--display);font-weight:300;font-size:56px;line-height:.95;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ptime span{font-size:.3em;font-weight:500;letter-spacing:0;margin-left:6px;opacity:.85}
+.status{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;font-weight:700;font-size:14px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.2)}
+.status i{width:9px;height:9px;border-radius:50%;background:var(--dot)}
+.window{font-size:14px;opacity:.92;margin:0}
+.pempty{background:var(--surface);border:1px dashed var(--rule);border-radius:20px;padding:26px 18px;text-align:center;color:var(--muted)}
+.field{width:100%;font:inherit;font-size:17px;padding:12px 14px;border-radius:12px;border:1px solid var(--rule);background:var(--bg);color:var(--fg)}
+.away{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.away button{all:unset;cursor:pointer;font:600 13px var(--body);padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.dark .away button{background:rgba(0,0,0,.25)}
+.foot2{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.foot2 .note{margin:0}
+.share{font:600 13px var(--body);padding:6px 13px;border-radius:999px;border:0;background:rgba(255,255,255,.55);color:inherit;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.dark .share{background:rgba(0,0,0,.3)}
+.toast{text-align:center;font-size:13px;min-height:1em;margin:6px 0 0}
+.glass2{background:rgba(255,255,255,.55);color:#10223A;border-radius:18px;padding:14px 16px;margin-bottom:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:8px;font-size:15px}
+.dark .glass2{background:rgba(10,16,40,.55);color:#EEF1FB}
+.glass2 b{font-family:var(--display);font-size:18px}
+.glass2 p{margin:0}
+.glass2 button{align-self:flex-start;font:700 14px var(--body);padding:8px 16px;border-radius:999px;border:0;background:#10223A;color:#fff;cursor:pointer}
+.dark .glass2 button{background:#EEF1FB;color:#0B1230}
+/* night sky mode */
+.nsbtn{font:600 14px var(--body);border-radius:999px;border:1.5px solid currentColor;background:rgba(255,255,255,.1);color:inherit;padding:8px 14px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.nsbtn.glow{animation:invite 3s ease-in-out 2}
+@keyframes invite{50%{box-shadow:0 0 0 6px rgba(255,255,255,.18),0 0 22px rgba(200,210,255,.45)}}
+.nsbtn[aria-pressed="true"]{background:#B3261E;border-color:#B3261E;color:#fff}
+.time .colon{animation:breathe 2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.35}}
+.nightui{position:absolute;inset:0;overflow-y:auto;color:#EEF1FB;-webkit-overflow-scrolling:touch}
+.ninner{max-width:640px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));padding-block:14px 40px;display:flex;flex-direction:column;gap:14px}
+.ntitle{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.ntime{font-family:var(--mono);font-size:14px;opacity:.75;font-variant-numeric:tabular-nums}
+.ntitle h1{font-family:var(--display);font-weight:300;font-size:clamp(36px,10vw,52px);line-height:1;letter-spacing:-.02em;margin:0}
+.glass{background:rgba(10,16,40,.42);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:16px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:8px}
+.glass h2{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;opacity:.75;margin:0}
+.moonbox{flex-direction:row;align-items:center;gap:16px}
+#bigmoon{width:120px;height:120px;flex:none}
+.moonbox b{font-family:var(--display);font-size:24px;font-weight:700;display:block;line-height:1.1}
+.moonbox p,.glass p{margin:0}
+.soft{opacity:.75;font-size:14px}
+.bigline{font-family:var(--display);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+.consts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.const{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0;border-radius:16px;padding:6px;margin:-6px;transition:background .2s}
+.const:hover{background:rgba(255,255,255,.05)}
+.const:focus-visible{outline:2px solid #FFD678;outline-offset:2px}
+.const .live{font:500 11px var(--mono);letter-spacing:.03em;opacity:.9;color:#FFD678}
+.const .live.down{color:inherit;opacity:.55}
+.const .more{font-style:normal;font-size:12.5px;font-weight:700;opacity:.85}
+.const svg{width:100%;aspect-ratio:1;background:rgba(255,255,255,.04);border-radius:14px}
+.const b{font-size:14px;line-height:1.2}
+.const span{font-size:12.5px;opacity:.75;line-height:1.3}
+@media (max-width:420px){.consts{grid-template-columns:1fr}.const{display:grid;grid-template-columns:76px 1fr;gap:4px 12px;align-items:center}.const svg{grid-row:span 4}}
+.events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.events li{display:block;padding:0;border-top:1px solid rgba(255,255,255,.1)}
+.evbtn{all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-radius:10px}
+.evbtn:hover{background:rgba(255,255,255,.04)}.evbtn:focus-visible{outline:2px solid #FFD678;outline-offset:2px}
+.term{all:unset;cursor:pointer;border-bottom:1.5px dotted currentColor}.term:focus-visible{outline:2px solid #FFD678;outline-offset:2px}
+.qi{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;font:700 10px var(--body);font-style:normal;background:rgba(255,255,255,.22);vertical-align:2px;text-transform:none;letter-spacing:0}
+.qb{border:0;color:inherit;cursor:pointer;margin-left:4px}
+button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pill:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.cshl{background:rgba(255,214,120,.1);border:1px solid rgba(255,214,120,.3);border-radius:16px;padding:12px 14px}
+.cshl small{font:500 11px var(--mono);letter-spacing:.07em;text-transform:uppercase;opacity:.75}
+.cshl b{display:block;font-family:var(--display);font-size:22px;font-weight:600;color:#FFD678;margin-top:2px}
+.cshl p{margin:4px 0 0;font-size:15px;line-height:1.4}
+.events li:first-child{border-top:0}
+.events .d{display:flex;flex-direction:column;align-items:center;line-height:1}
+.events .d small{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;opacity:.7;letter-spacing:.05em}
+.events .d strong{font-family:var(--display);font-size:24px;font-weight:600}
+.events .w{min-width:0}
+.events .w b{display:block;font-size:15px}
+.events .w span{font-size:13px;opacity:.75}
+.events .c{font-family:var(--mono);font-size:12px;opacity:.85;white-space:nowrap;background:rgba(255,255,255,.08);padding:4px 8px;border-radius:999px}
+.tip{text-align:center;font-size:13.5px;opacity:.7;margin:4px 12px 0}
+.redmode .tabs{background:#000;border-color:#1a0000}.redmode .tabs button{color:#777}.redmode .tabs button[aria-selected="true"]{color:#bbb}
+ .constov{position:fixed;inset:0;z-index:35;background:rgba(3,5,15,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center}
+.csheet{width:100%;max-width:560px;max-height:92vh;overflow-y:auto;color:#EEF1FB;background:linear-gradient(180deg,#0B1233,#121A45);border:1px solid rgba(255,255,255,.12);border-radius:24px 24px 0 0;
+  padding:18px max(18px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;animation:rise .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.cshead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.cshead small{font:500 11.5px var(--mono);letter-spacing:.04em;opacity:.75}
+.cshead h2{font-family:var(--display);font-weight:300;font-size:clamp(34px,9vw,46px);letter-spacing:-.02em;line-height:1;margin:4px 0 0}
+.csfigs{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;align-items:center}
+.csfigs>div{min-width:0}
+.bigfig{width:100%;height:auto;display:block;background:radial-gradient(circle at 50% 45%,rgba(120,140,255,.12),transparent 70%);border-radius:18px}
+.domewrap{display:flex;flex-direction:column;gap:6px;align-items:center}
+.dome{width:100%;max-width:112px;height:auto}
+.domewrap span{font-size:10.5px;opacity:.65;text-align:center;line-height:1.3}
+.csnow{background:rgba(255,214,120,.1);border:1px solid rgba(255,214,120,.3);border-radius:16px;padding:12px 14px;display:grid;grid-template-columns:112px 1fr;gap:14px;align-items:center}
+.csnow>div{min-width:0}
+.figwrap{display:flex;justify-content:center}
+.figwrap .bigfig{max-width:330px}
+.csnow small{font:500 11px var(--mono);letter-spacing:.07em;text-transform:uppercase;opacity:.75}
+.csnow p{margin:4px 0 0;font-size:15px;line-height:1.4}
+.csnow b{display:block;font-family:var(--display);font-size:20px;font-weight:600;color:#FFD678}
+.cschips{display:flex;flex-wrap:wrap;gap:8px}
+.cschips span{font-size:13px;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.cssec h3{font:500 11px var(--mono);letter-spacing:.09em;text-transform:uppercase;opacity:.75;margin:0 0 4px}
+.cssec p{margin:0;font-size:15px;line-height:1.5}
+@media (max-width:360px){.csnow{grid-template-columns:90px 1fr}}
+@media (prefers-reduced-motion:reduce){.csheet{animation:none}}
+.redlight{position:fixed;inset:0;background:#FF1A00;mix-blend-mode:multiply;pointer-events:none;z-index:40}
+@media (prefers-reduced-motion:reduce){.time .colon,.nsbtn.glow{animation:none}}
+</style>
+
+<section class="view" id="skyView" role="tabpanel" aria-label="Sky">
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="skyui">
+    <div class="topbar">
+      <label for="place" style="position:absolute;left:-9999px">Place</label>
+      <select id="place"></select>
+      <button class="nsbtn" id="nightBtn" aria-pressed="false">✦ Flip to night mode</button>
+    </div>
+    <div class="time" id="time">--:--</div>
+    <p class="date" id="date">–</p>
+    <div class="away" id="away"></div>
+    <p class="headline" id="headline">–</p>
+    <p class="say" id="say">–</p>
+    <div class="spacer"></div>
+    <div class="welcome glass2" id="welcome" hidden></div>
+    <div class="pills" id="pills"></div>
+    <div class="foot2"><p class="note" id="clocks"></p><button class="share" id="shareBtn">Share today’s light ↗</button></div>
+    <p class="toast" id="toast" aria-live="polite"></p>
+  </div>
+  <div class="nightui" id="nightui" hidden>
+    <div class="ninner">
+      <div class="topbar">
+        <button class="nsbtn" id="backBtn">☀︎ Flip back</button>
+        <button class="nsbtn" id="redBtn" aria-pressed="false">● Night vision</button>
+      </div>
+      <div class="time" id="ntime">--:--</div>
+      <p class="date" id="ndate">–</p>
+      <p class="headline" id="nhead">Tonight</p>
+      <p class="say" id="nsay"></p>
+      <section class="glass moonbox">
+        <canvas id="bigmoon" width="240" height="240" aria-label="Moon phase"></canvas>
+        <div><b id="nmName">–</b><p id="nmTxt">–</p><p class="soft" id="nmRise">–</p></div>
+      </section>
+      <section class="glass">
+        <h2>Best for stars <button type="button" class="qi qb" data-term="dark" aria-label="What does dark sky mean?">?</button></h2>
+        <p class="bigline" id="nDark">–</p>
+        <p class="soft" id="nDarkNote">–</p>
+      </section>
+      <section class="glass">
+        <h2>Look for this month · tap one for more</h2>
+        <div class="consts" id="consts"></div>
+        <p class="soft">Around 10pm. Positions shift about an hour earlier each fortnight.</p>
+      </section>
+      <section class="glass">
+        <h2>Coming up · tap for details</h2>
+        <ol class="events" id="events"></ol>
+      </section>
+      <p class="tip">Give your eyes twenty minutes in the dark. Night vision turns this screen red so it won’t undo that.</p>
+    </div>
+  </div>
+</section>
+<div class="constov" id="constov" hidden></div>
+<div class="redlight" id="redlight" hidden></div>
+
+<section class="view" id="alarmView" role="tabpanel" aria-label="Alarms" hidden>
+  <div class="wrap">
+    <div class="ahead"><h1>Alarms</h1><button class="add" id="addBtn">+ New alarm</button></div>
+    <p class="hint">Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms ring while Light Left is open on your screen.</p>
+    <div class="list" id="list"></div>
+    <button class="test" id="testBtn">▶ Hear the alarm sound</button>
+    <p class="hint" style="text-align:center"><a href="privacy.html" style="color:inherit">Privacy</a> · Light Left keeps everything on your device.</p>
+  </div>
+</section>
+
+<section class="view" id="peopleView" role="tabpanel" aria-label="People" hidden>
+  <div class="wrap">
+    <div class="ahead"><h1>People</h1><button class="add" id="addPerson">+ Add someone</button></div>
+    <p class="hint">Keep a clock for someone who’s away, so you know when to call. Add a return date and they’ll disappear when they’re home.</p>
+    <div class="plist" id="plist"></div>
+  </div>
+</section>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" id="tabSky" aria-selected="true"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg></span>Sky</button>
+  <button role="tab" id="tabAl" aria-selected="false"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4.2l2.6 1.6M4.5 4.8l2.6-2M19.5 4.8l-2.6-2M7 20.5l-1.5 1.5M17 20.5l1.5 1.5"/></svg></span>Alarms</button>
+  <button role="tab" id="tabPe" aria-selected="false"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></svg></span>People</button>
+</nav>
+
+<div class="scrim" id="pscrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="psTitle">
+    <h2 id="psTitle">Add someone</h2>
+    <div><label class="lab" for="pName">Name</label><input class="field" id="pName" maxlength="24" placeholder="Mum, Sam, the team…" autocomplete="off"></div>
+    <div><label class="lab" for="pCity">Where they are</label><select class="field" id="pCity"></select></div>
+    <div><label class="lab" for="pUntil">Home again on (optional)</label><input class="field" type="date" id="pUntil"></div>
+    <p class="preview" id="pPreview"></p>
+    <div class="row"><button class="cancel" id="pCancel">Cancel</button><button class="save" id="pSave">Save</button></div>
+    <button class="del" id="pDel" hidden>Remove</button>
+  </div>
+</div>
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle">New alarm</h2>
+    <div><span class="lab">Ring at</span><div class="seg" id="segType"></div></div>
+    <div id="timeBox"><span class="lab">Time</span><input type="time" id="timeIn" value="07:00"></div>
+    <div id="offBox"><span class="lab">When</span><div class="seg" id="segOff"></div></div>
+    <p class="preview" id="preview"></p>
+    <div class="row"><button class="cancel" id="cancelBtn">Cancel</button><button class="save" id="saveBtn">Save</button></div>
+    <button class="del" id="delBtn" hidden>Delete alarm</button>
+  </div>
+</div>
+
+<div class="ring" id="ring" hidden role="alertdialog" aria-labelledby="ringTitle">
+  <div class="big" id="ringTime">--:--</div>
+  <h2 id="ringTitle">–</h2>
+  <p id="ringTxt">–</p>
+  <div class="btns"><button class="snooze" id="snoozeBtn">Snooze 9 min</button><button class="stop" id="stopBtn">Stop</button></div>
+</div>
+
+<script>
+const PLACES=[["Lerwick",60.155,-1.145],["Inverness",57.477,-4.224],["Aberdeen",57.150,-2.094],["Edinburgh",55.953,-3.188],["Glasgow",55.861,-4.250],["Belfast",54.597,-5.930],["Newcastle",54.978,-1.617],["York",53.959,-1.082],["Liverpool",53.408,-2.991],["Manchester",53.480,-2.242],["Norwich",52.630,1.297],["Aberystwyth",52.415,-4.082],["Birmingham",52.486,-1.890],["Cardiff",51.481,-3.179],["Bristol",51.455,-2.588],["London",51.507,-0.128],["Brighton",50.822,-0.137],["Plymouth",50.375,-4.143],["Penzance",50.119,-5.537]];
+const R=Math.PI/180,DAY=864e5,TZ="Europe/London";
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function sunPos(t,lat,lon){
+  const jd=t/DAY+2440587.5,T=(jd-2451545)/36525;
+  const L0=((280.46646+T*(36000.76983+T*0.0003032))%360+360)%360,M=357.52911+T*(35999.05029-0.0001537*T),e=0.016708634-T*(0.000042037+0.0000001267*T);
+  const C=Math.sin(M*R)*(1.914602-T*(0.004817+0.000014*T))+Math.sin(2*M*R)*(0.019993-0.000101*T)+Math.sin(3*M*R)*0.000289;
+  const om=125.04-1934.136*T,lam=L0+C-0.00569-0.00478*Math.sin(om*R),eps=23+(26+(21.448-T*(46.815+T*(0.00059-T*0.001813)))/60)/60+0.00256*Math.cos(om*R);
+  const dec=Math.asin(Math.sin(eps*R)*Math.sin(lam*R)),y=Math.tan(eps*R/2)**2;
+  const eq=4*(y*Math.sin(2*L0*R)-2*e*Math.sin(M*R)+4*e*y*Math.sin(M*R)*Math.cos(2*L0*R)-0.5*y*y*Math.sin(4*L0*R)-1.25*e*e*Math.sin(2*M*R))/R;
+  const utcMin=((t%DAY)+DAY)%DAY/60000,ha=(((utcMin+eq+4*lon)%1440+1440)%1440)/4-180;
+  return 90-Math.acos(Math.max(-1,Math.min(1,Math.sin(lat*R)*Math.sin(dec)+Math.cos(lat*R)*Math.cos(dec)*Math.cos(ha*R))))/R}
+function moonPos(t,lat,lon){ // low-precision, about 1°
+  const d=t/DAY+2440587.5-2451545,L=218.316+13.176396*d,M=134.963+13.064993*d,F=93.272+13.229350*d;
+  const lo=(L+6.289*Math.sin(M*R))*R,la=5.128*Math.sin(F*R)*R,ep=23.439*R;
+  const ra=Math.atan2(Math.sin(lo)*Math.cos(ep)-Math.tan(la)*Math.sin(ep),Math.cos(lo)),dec=Math.asin(Math.sin(la)*Math.cos(ep)+Math.cos(la)*Math.sin(ep)*Math.sin(lo));
+  const lst=(280.46061837+360.98564736629*d+lon)*R,ha=lst-ra,ph=lat*R;
+  const alt=Math.asin(Math.sin(ph)*Math.sin(dec)+Math.cos(ph)*Math.cos(dec)*Math.cos(ha));
+  const az=Math.atan2(Math.sin(ha),Math.cos(ha)*Math.sin(ph)-Math.tan(dec)*Math.cos(ph))/R+180;
+  return {alt:alt/R,az:(az+360)%360}}
+function moonPhase(t){const syn=29.530588853,age=(((t/DAY+2440587.5-2451550.26)%syn)+syn)%syn,p=age/syn;
+  const names=["New moon","Waxing crescent","First quarter","Waxing gibbous","Full moon","Waning gibbous","Last quarter","Waning crescent"];
+  return {p,ill:(1-Math.cos(2*Math.PI*p))/2,name:names[Math.floor(p*8+0.5)%8]}}
+const partsF=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"numeric",second:"numeric",hourCycle:"h23"});
+function parts(t){const o={};partsF.formatToParts(new Date(t)).forEach(p=>o[p.type]=+p.value);return o}
+function offsetMin(t){const p=parts(t);return Math.round((Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-t)/60000)}
+function midOf(t){const p=parts(t),g=Date.UTC(p.year,p.month-1,p.day);return g-offsetMin(g)*60000}
+function cross(from,to,lat,lon,lvl,rising){const st=120000;let prev=sunPos(from,lat,lon);
+  for(let t=from+st;t<=to;t+=st){const h=sunPos(t,lat,lon);if(rising?(prev<lvl&&h>=lvl):(prev>=lvl&&h<lvl))return t-st+st*(prev-lvl)/(prev-h);prev=h}return null}
+function dayEvents(mid,lat,lon){const st=120000,ev={rise:null,set:null,goldPM:null,max:-90};let prev=sunPos(mid,lat,lon);
+  for(let i=1;i<=720;i++){const t=mid+i*st,h=sunPos(t,lat,lon),x=l=>t-st+st*(prev-l)/(prev-h);ev.max=Math.max(ev.max,h);
+    if(prev<-0.833&&h>=-0.833)ev.rise=x(-0.833);if(prev>=-0.833&&h<-0.833)ev.set=x(-0.833);if(prev>=6&&h<6)ev.goldPM=x(6);prev=h}
+  ev.len=ev.rise&&ev.set?ev.set-ev.rise:0;
+  ev.dusk=ev.set?cross(ev.set,ev.set+14*36e5,lat,lon,-18,false):null;return ev}
+const tf=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,hour:"numeric",minute:"2-digit",hour12:true});
+const fmt=t=>t?tf.format(new Date(t)).replace(/\s/g,"").toLowerCase():"–";
+const dateF=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,weekday:"long",day:"numeric",month:"long"});
+const hm=ms=>{const m=Math.round(Math.abs(ms)/60000);return Math.floor(m/60)?`${Math.floor(m/60)}h ${String(m%60).padStart(2,"0")}m`:`${m} min`};
+function lastSunday(y,mon){const d=new Date(Date.UTC(y,mon,0));d.setUTCDate(d.getUTCDate()-d.getUTCDay());return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),1)}
+const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const load=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}};
+
+/* place + day data */
+const sel=document.getElementById("place");
+sel.innerHTML=PLACES.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
+let idx=load("ll-place",15);if(!PLACES[idx])idx=15;sel.value=idx;
+sel.addEventListener("change",()=>{idx=+sel.value;store("ll-place",idx);compute();tick()});
+let D=null;
+function compute(){const now=Date.now(),[name,lat,lon]=PLACES[idx],mid=midOf(now);
+  D={name,lat,lon,mid,today:dayEvents(mid,lat,lon),tomorrow:dayEvents(midOf(mid+36*36e5),lat,lon),yesterday:dayEvents(midOf(mid-12*36e5),lat,lon),day:parts(now).day};
+  const y=parts(now).year,next=[lastSunday(y,3),lastSunday(y,10),lastSunday(y+1,3)].find(t=>t>now),days=Math.ceil((next-now)/DAY),back=new Date(next).getUTCMonth()===9;
+  document.getElementById("clocks").textContent=days<=21?`Clocks go ${back?"back":"forward"} ${days===1?"tomorrow":`in ${days} days`}${back?". An extra hour in bed":""}.`:solsticeLine(now).text;
+  planAlarms()}
+
+/* sky text */
+let state={e:0};
+function tick(){const now=Date.now();if(!D||parts(now).day!==D.day)compute();
+  const p=parts(now),{today,tomorrow,yesterday,name}=D,e=sunPos(now,D.lat,D.lon);state.e=e;
+  const hhmm=`${String(p.hour).padStart(2,"0")}<span class="colon">:</span>${String(p.minute).padStart(2,"0")}`;
+  const tEl=document.getElementById("time");if(tEl.dataset.v!==hhmm){tEl.innerHTML=hhmm;tEl.dataset.v=hhmm;tEl.setAttribute("aria-label",`${p.hour}:${String(p.minute).padStart(2,"0")}`)}
+  const nEl=document.getElementById("ntime");if(nEl.dataset.v!==hhmm){nEl.innerHTML=hhmm;nEl.dataset.v=hhmm}
+  if(nightMode)nightLine(now);
+  document.getElementById("nightBtn").classList.toggle("glow",sunPos(now,D.lat,D.lon)<-6&&!nightMode);
+  document.getElementById("date").textContent=`${dateF.format(new Date(now))} · ${name}`;
+  const H=document.getElementById("headline"),S=document.getElementById("say"),m=moonPhase(now);let pills;
+  const beforeRise=today.rise&&now<today.rise,day=today.rise&&today.set&&now>=today.rise&&now<today.set;
+  if(day){H.textContent=`${hm(today.set-now)} of light left`;S.textContent=now<today.goldPM?`Golden hour starts at ${fmt(today.goldPM)}.`:"It’s golden hour. The best light of the day.";
+    pills=[["Sunrise",fmt(today.rise)],["Golden hour",fmt(today.goldPM)],["Sunset",fmt(today.set)]]}
+  else{const rise=beforeRise?today.rise:tomorrow.rise,dusk=beforeRise?yesterday.dusk:today.dusk;
+    H.textContent=e>-6?"Twilight":`Sunrise in ${hm(rise-now)}`;
+    S.textContent=e>-6?`The sun has gone, but the sky is still bright. ${dusk&&now<dusk?`Stars come out properly at ${fmt(dusk)}.`:""}`:`${m.name}, ${Math.round(m.ill*100)}% lit. ${m.ill<0.3?"A dark sky, good for stars.":m.ill>0.7?"Bright moonlight tonight.":""}`;
+    pills=[["Dark sky from",dusk?fmt(dusk):"Not tonight"],["Moon",`${Math.round(m.ill*100)}%`],["Sunrise",fmt(rise)]]}
+  const TERMK={"Golden hour":"golden","Dark sky from":"dark","Moon":"phase"},pe=document.getElementById("pills"),ph2=pills.map(([a,b])=>TERMK[a]?`<button type="button" class="pill" data-term="${TERMK[a]}" aria-label="${a} ${b}. What does this mean?"><small>${a} <i class="qi" aria-hidden="true">?</i></small><b>${b}</b></button>`:`<div class="pill"><small>${a}</small><b>${b}</b></div>`).join("");
+  if(pe.dataset.h!==ph2){pe.innerHTML=ph2;pe.dataset.h=ph2}
+  const dark=e<-4;document.getElementById("skyView").classList.toggle("dark",dark);document.getElementById("skyView").style.setProperty("--skyfg",e>8?"#10223A":e>0?"#2A1606":"#F1F3FB");
+  checkAlarms(now);if(reduce)draw(performance.now())}
+
+/* scene */
+const cv=document.getElementById("scene"),g=cv.getContext("2d");let W=0,Hh=0,layers=[],hills=[],shoot=null;
+function resize(){const r=cv.getBoundingClientRect(),dpr=Math.min(2,devicePixelRatio||1);W=r.width;Hh=r.height;cv.width=W*dpr;cv.height=Hh*dpr;g.setTransform(dpr,0,0,dpr,0,0);
+  const rnd=(a,b)=>a+Math.random()*(b-a),area=W*Hh;
+  layers=[[area/700,0.25,0.7,0.6],[area/3500,0.6,1.2,0.85],[area/22000,1.2,1.9,1]].map(([n,a,b,al])=>Array.from({length:Math.round(n)},()=>({x:rnd(0,W),y:rnd(0,Hh*0.78),s:rnd(a,b),al,ph:rnd(0,6.28),sp:rnd(.4,1.6),hue:Math.random()<.15?"#FFE6C7":Math.random()<.15?"#CFE0FF":"#FFFFFF"})));
+  hills=[[0.86,0.05,2.1],[0.9,0.035,3.3]].map(([b,a,f])=>({b,a,f,ph:Math.random()*6}))}
+addEventListener("resize",resize);
+const STOPS=[[-18,"#03050F","#0B1330"],[-12,"#060B24","#1B2550"],[-6,"#141B4A","#5B4778"],[-2,"#2A3375","#E08A63"],[2,"#3E5F9E","#F3B27A"],[8,"#5C8DC6","#F2D3A6"],[20,"#5E9BD6","#CBE1F2"]];
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),mix=(a,b,t)=>`rgb(${hex(a).map((v,i)=>Math.round(v+(hex(b)[i]-v)*t)).join(",")})`;
+function skyCols(e){if(e<=STOPS[0][0])return[STOPS[0][1],STOPS[0][2]].map(c=>mix(c,c,0));for(let i=1;i<STOPS.length;i++){if(e<=STOPS[i][0]){const[a0,t0,b0]=STOPS[i-1],[a1,t1,b1]=STOPS[i],k=(e-a0)/(a1-a0);return[mix(t0,t1,k),mix(b0,b1,k)]}}const l=STOPS[STOPS.length-1];return[mix(l[1],l[1],0),mix(l[2],l[2],0)]}
+function draw(ts){if(!D||!W)return;const now=Date.now(),realE=sunPos(now,D.lat,D.lon),e=nightMode?Math.min(-19,realE):realE,[top,bot]=skyCols(e);
+  const sky=g.createLinearGradient(0,0,0,Hh);sky.addColorStop(0,top);sky.addColorStop(1,bot);g.fillStyle=sky;g.fillRect(0,0,W,Hh);
+  // horizon glow: warm at dusk and dawn, cool blue later
+  const glowA=Math.max(0,1-Math.abs(e+3)/9),glow=g.createRadialGradient(W*0.5,Hh*0.9,0,W*0.5,Hh*0.9,Math.max(W,Hh)*0.75);
+  glow.addColorStop(0,`rgba(255,170,110,${0.55*glowA})`);glow.addColorStop(0.4,`rgba(240,120,110,${0.18*glowA})`);glow.addColorStop(1,"rgba(0,0,0,0)");g.fillStyle=glow;g.fillRect(0,0,W,Hh);
+  // stars
+  const sa=Math.max(0,Math.min(1,(-e-3)/9));
+  if(sa>0){const t=ts/1000;layers.forEach((L,li)=>{for(const s of L){const tw=reduce?0.85:0.6+0.4*Math.sin(t*s.sp+s.ph);g.globalAlpha=sa*s.al*tw*(1-s.y/(Hh*0.95));g.fillStyle=s.hue;g.beginPath();g.arc(s.x,s.y,s.s,0,6.283);g.fill();
+      if(li===2){g.globalAlpha*=0.5;g.fillRect(s.x-s.s*3,s.y-0.3,s.s*6,0.6);g.fillRect(s.x-0.3,s.y-s.s*3,0.6,s.s*6)}}});
+    if(!reduce){if(!shoot&&Math.random()<0.0012*sa)shoot={x:W*(0.3+Math.random()*0.7),y:Hh*Math.random()*0.35,l:0};
+      if(shoot){shoot.l+=7;const a=Math.max(0,1-shoot.l/260);const gr=g.createLinearGradient(shoot.x-shoot.l,shoot.y+shoot.l*.4,shoot.x-shoot.l+60,shoot.y+shoot.l*.4-25);gr.addColorStop(0,`rgba(255,255,255,${a*sa})`);gr.addColorStop(1,"rgba(255,255,255,0)");g.globalAlpha=1;g.strokeStyle=gr;g.lineWidth=1.6;g.beginPath();g.moveTo(shoot.x-shoot.l,shoot.y+shoot.l*.4);g.lineTo(shoot.x-shoot.l+60,shoot.y+shoot.l*.4-25);g.stroke();if(a<=0)shoot=null}}}
+  g.globalAlpha=1;
+  const hy=Hh*0.84;
+  // sun path arc and sun
+  const {today}=D;if(!nightMode&&today.rise&&today.set){const x0=W*0.08,x1=W*0.92,peak=hy-Math.min(Hh*0.42,Math.max(40,today.max*Hh*0.009));
+    const q=k=>[(1-k)**2*x0+2*(1-k)*k*(W/2)+k*k*x1,(1-k)**2*hy+2*(1-k)*k*(2*peak-hy)+k*k*hy];
+    g.setLineDash([2,6]);g.strokeStyle=`rgba(255,255,255,${0.25+0.3*(e>0?1:0.4)})`;g.lineWidth=1.5;g.beginPath();g.moveTo(x0,hy);g.quadraticCurveTo(W/2,2*peak-hy,x1,hy);g.stroke();g.setLineDash([]);
+    if(now>=today.rise&&now<=today.set){const[sx,sy]=q((now-today.rise)/(today.set-today.rise));const gl=g.createRadialGradient(sx,sy,0,sx,sy,60);gl.addColorStop(0,"rgba(255,220,140,.9)");gl.addColorStop(.25,"rgba(255,200,110,.35)");gl.addColorStop(1,"rgba(255,200,110,0)");g.fillStyle=gl;g.beginPath();g.arc(sx,sy,60,0,6.283);g.fill();g.fillStyle="#FFE08A";g.beginPath();g.arc(sx,sy,11,0,6.283);g.fill()}}
+  // moon, where it really is (east on the left, south in the middle, west on the right)
+  const mp=moonPos(now,D.lat,D.lon);if(mp.alt>0&&e<4){const ph=moonPhase(now),mx=W*Math.max(0.1,Math.min(0.9,(mp.az-90)/180)),my=hy-(Math.min(mp.alt,60)/60)*(hy-Hh*0.42),r=Math.max(14,Math.min(W,Hh)*0.045);
+    const ga=Math.min(1,(4-e)/8);const mg=g.createRadialGradient(mx,my,r*.8,mx,my,r*5);mg.addColorStop(0,`rgba(230,235,255,${0.28*ph.ill*ga})`);mg.addColorStop(1,"rgba(230,235,255,0)");g.fillStyle=mg;g.beginPath();g.arc(mx,my,r*5,0,6.283);g.fill();
+    g.save();g.globalAlpha=ga;g.translate(mx,my);const k=Math.cos(2*Math.PI*ph.p),wax=ph.p<0.5;g.fillStyle="rgba(40,48,80,.85)";g.beginPath();g.arc(0,0,r,0,6.283);g.fill();
+    g.fillStyle="#F3EFDD";g.beginPath();g.arc(0,0,r,-Math.PI/2,Math.PI/2,!wax);g.closePath();g.fill();g.fillStyle=k>0?"rgb(40,48,80)":"#F3EFDD";g.beginPath();g.ellipse(0,0,Math.abs(k)*r,r,0,0,6.283);g.fill();g.restore()}
+  // hills
+  hills.forEach((h,i)=>{const y0=Hh*h.b;g.fillStyle=e>0?(i?"rgba(30,55,45,.9)":"rgba(55,85,70,.75)"):(i?"rgba(5,8,18,.97)":"rgba(14,18,35,.9)");g.beginPath();g.moveTo(0,Hh);for(let x=0;x<=W;x+=8){g.lineTo(x,y0-Math.sin(x/W*Math.PI*h.f+h.ph)*Hh*h.a-Math.sin(x/W*Math.PI*h.f*2.7+h.ph*2)*Hh*h.a*0.3)}g.lineTo(W,Hh);g.fill()})}
+let last=0;function loop(ts){if(!document.getElementById("skyView").hidden&&ts-last>33){draw(ts);last=ts}requestAnimationFrame(loop)}
+
+/* alarms */
+const TYPES=[["time","A set time"],["rise","Sunrise"],["gold","Golden hour"],["set","Sunset"],["dark","Dark sky"]];
+const OFFS=[[0,"On time"],[15,"15 min before"],[30,"30 min before"]];
+let alarms=load("ll-alarms2",[{id:1,type:"rise",off:15,time:"07:00",on:false,fired:0},{id:2,type:"time",off:0,time:"07:00",on:false,fired:0}]);
+let targets={},actx=null,wake=null,ringing=null,loopT=null,snooze=null;
+function bases(a){const {today:t,tomorrow:m,mid}=D;
+  if(a.type==="time"){const[h,mm]=a.time.split(":").map(Number);return[mid+(h*60+mm)*6e4,midOf(mid+36*36e5)+(h*60+mm)*6e4]}
+  const k={rise:"rise",gold:"goldPM",set:"set",dark:"dusk"}[a.type];return[t[k],m[k]]}
+function nextFor(a,now){const off=a.type==="time"?0:a.off*6e4;const[b1,b2]=bases(a);let x=b1?b1-off:null;if(!x||x<=now||x===a.fired)x=b2?b2-off:null;return x}
+function planAlarms(){const now=Date.now();alarms.forEach(a=>targets[a.id]=nextFor(a,now));renderList()}
+function label(a){const n=TYPES.find(t=>t[0]===a.type)[1];return a.type==="time"?"Alarm":`${n}${a.off?` · ${a.off} min before`:""}`}
+function renderList(){const L=document.getElementById("list");if(!alarms.length){L.innerHTML=`<div class="empty">No alarms yet. Tap “New alarm” to add one.</div>`;return}
+  L.innerHTML=alarms.map(a=>{const t=targets[a.id],tt=t?tf.format(new Date(t)).split(" "):["–",""];const when=t?(midOf(t)===D.mid?"today":"tomorrow"):"not available here";
+   return `<div class="item${a.on?"":" off"}"><button class="open" data-id="${a.id}" aria-label="Edit ${label(a)}"><span class="at">${tt[0]}<span>${(tt[1]||"").toLowerCase()}</span></span><span class="lbl">${label(a)} · ${when}</span></button>
+   <button class="switch" role="switch" aria-checked="${a.on}" aria-label="${label(a)} on or off" data-id="${a.id}"></button></div>`}).join("")}
+const save=()=>store("ll-alarms2",alarms);
+document.getElementById("list").addEventListener("click",e=>{const s=e.target.closest(".switch"),o=e.target.closest(".open");
+  if(s){const a=alarms.find(x=>x.id==s.dataset.id);a.on=!a.on;unlock();save();planAlarms();keepAwake()}
+  if(o)openSheet(alarms.find(x=>x.id==o.dataset.id))});
+/* sheet */
+let draft=null,editing=null;
+function openSheet(a){editing=a||null;draft=a?{...a}:{id:Date.now(),type:"time",off:0,time:"07:00",on:true,fired:0};
+  document.getElementById("sheetTitle").textContent=a?"Edit alarm":"New alarm";document.getElementById("delBtn").hidden=!a;
+  document.getElementById("timeIn").value=draft.time;renderSheet();document.getElementById("scrim").hidden=false;document.getElementById("saveBtn").focus()}
+function renderSheet(){document.getElementById("segType").innerHTML=TYPES.map(([k,l])=>`<button data-k="${k}" aria-pressed="${draft.type===k}">${l}</button>`).join("");
+  document.getElementById("segOff").innerHTML=OFFS.map(([v,l])=>`<button data-v="${v}" aria-pressed="${draft.off===v}">${l}</button>`).join("");
+  document.getElementById("timeBox").hidden=draft.type!=="time";document.getElementById("offBox").hidden=draft.type==="time";
+  const t=nextFor(draft,Date.now());document.getElementById("preview").innerHTML=t?`Next rings <b>${midOf(t)===D.mid?"today":"tomorrow"} at ${fmt(t)}</b> in ${D.name}.`:`There’s no proper dark sky in ${D.name} at this time of year.`}
+document.getElementById("segType").addEventListener("click",e=>{const b=e.target.closest("button");if(b){draft.type=b.dataset.k;if(draft.type==="dark")draft.off=0;renderSheet()}});
+document.getElementById("segOff").addEventListener("click",e=>{const b=e.target.closest("button");if(b){draft.off=+b.dataset.v;renderSheet()}});
+document.getElementById("timeIn").addEventListener("input",e=>{draft.time=e.target.value||"07:00";renderSheet()});
+const closeSheet=()=>{document.getElementById("scrim").hidden=true};
+document.getElementById("cancelBtn").onclick=closeSheet;
+document.getElementById("scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
+document.getElementById("saveBtn").onclick=()=>{draft.on=true;draft.fired=0;if(editing)Object.assign(editing,draft);else alarms.push(draft);unlock();save();planAlarms();keepAwake();closeSheet()};
+document.getElementById("delBtn").onclick=()=>{alarms=alarms.filter(a=>a!==editing);save();planAlarms();keepAwake();closeSheet()};
+document.getElementById("addBtn").onclick=()=>openSheet(null);
+/* ringing */
+function checkAlarms(now){if(ringing)return;
+  if(snooze&&now>=snooze.t){const a=snooze.a;snooze=null;ring(a);return}
+  for(const a of alarms){const t=targets[a.id];if(a.on&&t&&now>=t&&now-t<5*6e4&&a.fired!==t){a.fired=t;save();ring(a);planAlarms();return}}
+  if(alarms.some(a=>targets[a.id]&&targets[a.id]<now-6e4))planAlarms()}
+function ring(a){ringing=a;const T={time:["Time to get up",`Sunrise in ${D.name} is at ${fmt(D.today.rise>Date.now()?D.today.rise:D.tomorrow.rise)}.`],rise:["Good morning",`The sun is coming up over ${D.name}.`],gold:["Golden hour","The best light of the day starts now."],set:["Sunset",`The sun is going down over ${D.name}.`],dark:["Look up","It’s properly dark now. A good time for stars."]}[a.type];
+  document.getElementById("ringTitle").textContent=T[0];document.getElementById("ringTxt").textContent=T[1];
+  const p=parts(Date.now());document.getElementById("ringTime").textContent=`${String(p.hour).padStart(2,"0")}:${String(p.minute).padStart(2,"0")}`;
+  document.getElementById("ring").hidden=false;play();clearInterval(loopT);loopT=setInterval(play,4200);document.getElementById("stopBtn").focus()}
+function stopRing(){clearInterval(loopT);ringing=null;document.getElementById("ring").hidden=true}
+document.getElementById("stopBtn").onclick=stopRing;
+document.getElementById("snoozeBtn").onclick=()=>{snooze={a:ringing,t:Date.now()+9*6e4};stopRing()};
+function unlock(){try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume()}catch(e){}}
+function tone(f,s,d,v,type="sine",to){const o=actx.createOscillator(),gn=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,s);if(to)o.frequency.exponentialRampToValueAtTime(to,s+d*.6);gn.gain.setValueAtTime(1e-4,s);gn.gain.exponentialRampToValueAtTime(v,s+.02);gn.gain.exponentialRampToValueAtTime(1e-4,s+d);o.connect(gn).connect(actx.destination);o.start(s);o.stop(s+d+.05)}
+function play(){unlock();if(!actx)return;const t=actx.currentTime+.05;[392,494,587,784].forEach((f,i)=>tone(f,t+i*.32,2.2,.18));for(let i=0;i<6;i++)tone(2600+Math.random()*900,t+1.4+i*.22+Math.random()*.1,.12,.05,"sine",3800+Math.random()*900)}
+document.getElementById("testBtn").onclick=play;
+async function keepAwake(){const any=alarms.some(a=>a.on);try{if(any&&!wake&&navigator.wakeLock){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null)}if(!any&&wake){wake.release();wake=null}}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){keepAwake();tick()}});
+/* night sky mode */
+let nightMode=false,redOn=load("ll-red",false);
+const buzz=()=>{try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}};
+function phaseTimes(k,full){ // Meeus ch.49, accurate to a few minutes
+  const T=k/1236.85,r=x=>x*R;let jde=2451550.09766+29.530588861*k+0.00015437*T*T;
+  const E=1-0.002516*T,M=r(2.5534+29.1053567*k),Mp=r(201.5643+385.81693528*k+0.0107582*T*T),F=r(160.7108+390.67050284*k);
+  jde+=full?(-0.40614*Math.sin(Mp)+0.17302*E*Math.sin(M)+0.01614*Math.sin(2*Mp)+0.01043*Math.sin(2*F)+0.00734*E*Math.sin(Mp-M)-0.00515*E*Math.sin(Mp+M)+0.00209*E*E*Math.sin(2*M))
+           :(-0.40720*Math.sin(Mp)+0.17241*E*Math.sin(M)+0.01608*Math.sin(2*Mp)+0.01039*Math.sin(2*F)+0.00739*E*Math.sin(Mp-M)-0.00514*E*Math.sin(Mp+M)+0.00208*E*E*Math.sin(2*M));
+  return (jde-2440587.5)*DAY-69000}
+function phasesBetween(a,b){const out=[];let k=Math.floor(((a/DAY+2440587.5)-2451550.09766)/29.530588861)-1;
+  for(;;k++){for(const full of[false,true]){const t=phaseTimes(k+(full?0.5:0),full);if(t>b)return out;if(t>=a)out.push({t,full})}}}
+const MOONNAMES=["Wolf Moon","Snow Moon","Worm Moon","Pink Moon","Flower Moon","Strawberry Moon","Buck Moon","Sturgeon Moon","Harvest Moon","Hunter’s Moon","Beaver Moon","Cold Moon"];
+function fullName(t){const y=parts(t).year,eq=Date.UTC(y,8,22,18);const fulls=phasesBetween(eq-40*DAY,eq+70*DAY).filter(x=>x.full).map(x=>x.t);
+  let hi=0;fulls.forEach((f,i)=>{if(Math.abs(f-eq)<Math.abs(fulls[hi]-eq))hi=i});
+  if(fulls.length&&Math.abs(fulls[hi]-t)<DAY)return MOONNAMES[8];if(fulls[hi+1]&&Math.abs(fulls[hi+1]-t)<DAY)return MOONNAMES[9];
+  const m=parts(t).month-1;return m===8?"Corn Moon":MOONNAMES[m===9?10:m]}
+function moonRiseSet(from,lat,lon){let rise=null,set=null,prev=moonPos(from,lat,lon).alt;const st=5*6e4;
+  for(let t=from+st;t<=from+DAY&&(!rise||!set);t+=st){const a=moonPos(t,lat,lon).alt,x=t-st+st*prev/(prev-a);if(prev<0&&a>=0&&!rise)rise=x;if(prev>=0&&a<0&&!set)set=x;prev=a}
+  return {rise,set,up:moonPos(from,lat,lon).alt>0}}
+const SHOWERS=[[1,3,"Quadrantids",110,"A short, sharp peak. Look north-east after midnight."],[4,22,"Lyrids",18,"Bright, quick meteors that sometimes leave trails."],[5,5,"Eta Aquariids",null,"Dust from Halley’s Comet. Low from the UK, so try just before dawn."],[8,12,"Perseids",100,"The summer favourite, with plenty of bright ones."],[10,8,"Draconids",10,"Unusually, best in the evening."],[10,21,"Orionids",20,"Fast meteors from Halley’s Comet. Best after midnight."],[11,17,"Leonids",15,"The fastest meteors of the year. Best after midnight."],[12,13,"Geminids",150,"The best shower of the year, and good before midnight too."],[12,22,"Ursids",10,"A small shower around the longest night."]];
+// constellation figures: [stars [x,y,size]], lines [[a,b]]
+const FIG={
+ cas:[[[8,38,2.2],[30,64,2],[50,40,2.4],[70,66,2],[92,30,2]],[[0,1],[1,2],[2,3],[3,4]]],
+ plough:[[[6,34,2],[24,30,2],[40,38,2],[54,46,2],[56,72,2.2],[84,74,2.2],[88,48,2]],[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,3]]],
+ orion:[[[28,14,3],[72,20,2.2],[42,50,2],[50,53,2],[58,56,2],[34,86,2],[74,84,3]],[[0,1],[0,2],[1,4],[2,3],[3,4],[2,5],[4,6]]],
+ peg:[[[20,30,2.2],[66,26,2.2],[72,70,2],[24,74,2],[84,16,1.8],[94,8,1.6],[88,22,1.2]],[[0,1],[1,2],[2,3],[3,0],[1,4],[4,5]]],
+ pleiades:[[[40,40,2.4],[52,36,2],[58,46,2.2],[48,52,1.8],[62,58,1.6],[36,56,1.6],[54,62,1.4]],[]],
+ triangle:[[[30,18,3],[82,40,2.6],[46,88,2.6]],[[0,1],[1,2],[2,0]]],
+ cygnus:[[[50,6,2.6],[50,38,2],[50,62,1.6],[50,94,2],[20,40,1.8],[80,36,1.8]],[[0,1],[1,2],[2,3],[4,1],[1,5]]],
+ leo:[[[30,16,2],[18,26,1.8],[16,42,2],[26,52,1.8],[34,62,2.6],[74,54,2],[88,70,2.2],[66,74,1.8]],[[0,1],[1,2],[2,3],[3,4],[4,7],[7,6],[6,5],[5,3]]],
+ gemini:[[[28,10,2.6],[50,14,2.8],[24,50,1.6],[46,52,1.6],[22,88,1.8],[44,90,1.8]],[[0,2],[2,4],[1,3],[3,5],[0,1]]],
+ bootes:[[[50,90,3],[34,62,1.8],[38,32,1.8],[54,10,1.6],[68,32,1.8],[62,62,1.8]],[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]]],
+ sirius:[[[50,30,3.6],[36,56,1.8],[62,60,1.8],[44,84,2],[66,80,1.6]],[[0,1],[0,2],[1,3],[2,4]]]};
+const MONTHS=[
+ [["orion","Orion","High in the south","Three stars in a row make his belt."],["pleiades","The Pleiades","High in the south-west","A tiny misty cluster. Count six or seven stars."],["gemini","Gemini","High in the east","Castor and Pollux are the twins’ heads."]],
+ [["orion","Orion","In the south","Red Betelgeuse at his shoulder, blue Rigel at his foot."],["sirius","Sirius","Low in the south-east","The brightest star in the night sky."],["gemini","Gemini","High in the south","Twin bright stars side by side."]],
+ [["leo","Leo","Rising in the east","Look for a backwards question mark: the lion’s head."],["gemini","Gemini","High in the south-west","Castor and Pollux, side by side."],["plough","The Plough","High in the north-east","Seven stars shaped like a saucepan."]],
+ [["leo","Leo","In the south","The backwards question mark of the lion’s head."],["plough","The Plough","Almost overhead","Follow its handle’s curve to orange Arcturus."],["bootes","Boötes","In the east","A kite shape, with Arcturus at the tail."]],
+ [["bootes","Boötes","High in the south-east","Arcturus is the brightest star in this part of the sky."],["plough","The Plough","Overhead","Its end stars point to Polaris, the North Star."],["leo","Leo","In the south-west","Heading west as summer comes."]],
+ [["triangle","Summer Triangle","Rising in the east","Three bright stars: Vega, Deneb and Altair. Nights barely get dark this month."],["bootes","Boötes","High in the south","Orange Arcturus is easy even in twilight."],["plough","The Plough","High in the north-west","Still easy to spot in the half-light."]],
+ [["triangle","Summer Triangle","High in the east","Vega is the brightest of the three."],["cygnus","Cygnus","In the east","A swan flying along the Milky Way."],["bootes","Boötes","In the west","Arcturus, setting later each night."]],
+ [["triangle","Summer Triangle","Overhead","The Milky Way runs right through it on dark nights."],["cygnus","Cygnus","Overhead","Also called the Northern Cross."],["cas","Cassiopeia","In the north-east","A W of five stars."]],
+ [["triangle","Summer Triangle","High in the south-west","Still the brightest pattern after dark."],["peg","Pegasus","Rising in the east","Look for a big square of four stars."],["cas","Cassiopeia","High in the north-east","A bright W. It never sets from the UK."]],
+ [["peg","Pegasus & Andromeda","High in the south-east","Off one corner of the Great Square lies a faint smudge: the Andromeda Galaxy, 2.5 million light years away."],["cas","Cassiopeia","Almost overhead","A bright W. It never sets from the UK."],["plough","The Plough","Low in the north","Its end stars point to Polaris, the North Star."]],
+ [["pleiades","The Pleiades","In the east, climbing","A tiny misty cluster. Count six or seven stars."],["peg","Pegasus & Andromeda","High in the south","The Great Square, with the Andromeda Galaxy off one corner."],["orion","Orion","Rising in the east late on","Winter’s great hunter, appearing before midnight."]],
+ [["orion","Orion","Rising in the south-east","Three stars in a row make his belt."],["pleiades","The Pleiades","High in the south-east","A tiny misty cluster. Count six or seven stars."],["gemini","Gemini","In the east","The Geminids shower comes from here mid-month."]]];
+function figSVG(k){const[s,l]=FIG[k];return `<svg viewBox="0 0 100 100" aria-hidden="true">${l.map(([a,b])=>`<line x1="${s[a][0]}" y1="${s[a][1]}" x2="${s[b][0]}" y2="${s[b][1]}" stroke="rgba(190,205,255,.45)" stroke-width="1"/>`).join("")}${s.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r*2.4}" fill="rgba(255,255,255,.12)"/><circle cx="${x}" cy="${y}" r="${r}" fill="#fff"/>`).join("")}</svg>`}
+function drawMoonCtx(c,cx,cy,r,p){const k=Math.cos(2*Math.PI*p),wax=p<0.5;
+  c.save();c.translate(cx,cy);const glow=c.createRadialGradient(0,0,r*.9,0,0,r*1.6);glow.addColorStop(0,"rgba(235,238,255,.25)");glow.addColorStop(1,"rgba(235,238,255,0)");c.fillStyle=glow;c.beginPath();c.arc(0,0,r*1.6,0,6.283);c.fill();
+  const lit=c.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r);lit.addColorStop(0,"#FBF8EC");lit.addColorStop(1,"#DCD6C2");c.fillStyle=lit;c.beginPath();c.arc(0,0,r,0,6.283);c.fill();
+  c.fillStyle="rgba(150,145,130,.28)";[[-.3,-.25,.28],[.15,-.35,.18],[.25,.1,.22],[-.1,.3,.16],[.4,-.05,.1]].forEach(([x,y,s])=>{c.beginPath();c.arc(x*r,y*r,s*r,0,6.283);c.fill()});
+  if(!wax)c.scale(-1,1);c.fillStyle="rgba(18,24,48,.93)";c.beginPath();c.arc(0,0,r+.5,-Math.PI/2,Math.PI/2,true);c.ellipse(0,0,Math.abs(k)*r,r+.5,0,Math.PI/2,-Math.PI/2,k>0);c.closePath();c.fill();c.restore()}
+/* constellation guide: positions are J2000 (precession since then is under half a degree) */
+const CINFO={
+ cas:{name:"Cassiopeia",say:"kass-ee-oh-PEE-uh",what:"The Queen",ra:14.18,dec:60.72,star:"Schedar",dist:"about 230 light years",lab:{},
+  find:"Find the Plough, then Polaris, the North Star. Cassiopeia sits on the opposite side of Polaris, at about the same distance. Its five bright stars make a W or an M, depending on the time of night.",
+  closer:["The Double Cluster","Two star clusters side by side, about 7,500 light years away, just off one end of the W towards Perseus."],
+  fact:"In Greek myth Cassiopeia was a vain queen, placed so close to the pole that she hangs upside down for part of every night."},
+ plough:{name:"The Plough",say:"",what:"Part of the Great Bear",ra:183.86,dec:57.03,star:"Alioth",dist:"about 83 light years",lab:{1:"Mizar",5:"Merak",6:"Dubhe"},
+  find:"Look north for seven bright stars shaped like a saucepan. The two stars at the end of the pan, Dubhe and Merak, point to Polaris, the North Star. Follow the curve of the handle the other way to orange Arcturus: “arc to Arcturus”.",
+  closer:["Mizar and Alcor","The middle star of the handle has a fainter partner, Alcor. Seeing both was once an eyesight test. In binoculars they’re easy."],
+  fact:"Five of the seven stars travel through space together, a family born from the same cloud. In North America it’s called the Big Dipper."},
+ orion:{name:"Orion",say:"oh-RYE-un",what:"The Hunter",ra:84.05,dec:-1.2,star:"Rigel",dist:"about 860 light years",lab:{0:"Betelgeuse",3:"The belt",6:"Rigel"},
+  find:"Look south for three bright stars in a short, straight line: Orion’s belt. Red Betelgeuse is above it, blue-white Rigel below. Follow the belt down and left to Sirius, or up and right to orange Aldebaran and the Pleiades.",
+  closer:["The Orion Nebula","A glowing cloud in the sword hanging below the belt, where new stars are forming about 1,350 light years away. It shows as a fuzzy patch even without binoculars."],
+  fact:"Betelgeuse is a red supergiant so big that, put in place of the Sun, it would reach beyond the orbit of Mars."},
+ peg:{name:"Pegasus & Andromeda",say:"",what:"The Winged Horse and the Princess",ra:354.4,dec:21.9,star:"Alpheratz",dist:"about 97 light years",lab:{1:["Alpheratz",62,36,"end"],6:["Andromeda\nGalaxy",84,32,"start"]},
+  find:"Look for a big square of four stars, larger than you expect: the Great Square. From its corner star Alpheratz, follow a chain of stars away from the Square. At the second star, Mirach, turn towards Cassiopeia and hop up two fainter stars. The misty patch just beyond is the Andromeda Galaxy.",
+  closer:["The Andromeda Galaxy","A spiral galaxy of hundreds of billions of stars, 2.5 million light years away: the most distant thing you can see without a telescope."],
+  fact:"The light you see from the Andromeda Galaxy left it about 2.5 million years ago, long before our species existed."},
+ pleiades:{name:"The Pleiades",say:"PLY-uh-deez",what:"The Seven Sisters",ra:56.75,dec:24.12,star:"Alcyone",dist:"about 440 light years",lab:{0:"Alcyone"},
+  find:"Follow Orion’s belt up and to the right, past orange Aldebaran, to a tiny, tight cluster like a misty mini saucepan. Try looking slightly to one side of it: the edge of your eye picks up faint stars better.",
+  closer:["The whole cluster","Binoculars turn six or seven stars into dozens of blue-white jewels."],
+  fact:"Its Japanese name is Subaru, and the car company’s badge shows the cluster."},
+ triangle:{name:"Summer Triangle",say:"",what:"Three bright stars, not a constellation",ra:295.76,dec:30.98,star:"Vega",dist:"25 light years",lab:{0:"Vega",1:"Deneb",2:"Altair"},
+  find:"Look for the three brightest stars high up on summer and autumn evenings. Vega is the brightest and bluest. Deneb marks the swan’s tail. Altair has a fainter star on either side.",
+  closer:["The Coathanger","A little upside-down coat hanger of stars, about a third of the way from Altair towards Vega."],
+  fact:"Vega was the North Star around 14,000 years ago, and will be again in about 12,000 years, as Earth’s axis slowly wobbles."},
+ cygnus:{name:"Cygnus",say:"SIG-nus",what:"The Swan, or Northern Cross",ra:305.56,dec:40.26,star:"Deneb",dist:"roughly 2,600 light years",lab:{0:"Deneb",3:"Albireo"},
+  find:"Start at Deneb, one corner of the Summer Triangle. The swan flies down the Milky Way from there, its long neck ending at Albireo, near the middle of the Triangle.",
+  closer:["The Milky Way","Sweep binoculars along the swan for countless faint stars and a dark lane of dust called the Cygnus Rift. Albireo, the swan’s beak, is a gold and blue pair in a small telescope."],
+  fact:"Deneb is one of the most distant stars you can see without help, yet it’s still one of the brightest in the sky."},
+ leo:{name:"Leo",say:"",what:"The Lion",ra:152.09,dec:11.97,star:"Regulus",dist:"about 79 light years",lab:{4:"Regulus",6:"Denebola"},
+  find:"Use the Plough: follow its two pointer stars the opposite way from Polaris and you reach Leo. Look for a backwards question mark, the Sickle, with bright Regulus at its base.",
+  closer:["Algieba","Partway up the Sickle, Algieba is a golden double star in a small telescope."],
+  fact:"Regulus spins once every 16 hours, so fast that it bulges at its middle. The Leonid meteors seem to stream from Leo’s head each November."},
+ gemini:{name:"Gemini",say:"JEM-in-eye",what:"The Twins",ra:115,dec:30,star:"Pollux",dist:"about 34 light years",lab:{0:"Castor",1:"Pollux"},
+  find:"On winter evenings, look up and to the left of Orion for two bright stars side by side: Castor and Pollux. Two lines of fainter stars run from them back towards Orion, like stick figures holding hands.",
+  closer:["M35","A star cluster near the twins’ feet, about 2,800 light years away. In binoculars it’s a soft, speckled patch."],
+  fact:"The Geminid meteors each December come from an asteroid, 3200 Phaethon, not a comet like most showers."},
+ bootes:{name:"Boötes",say:"bo-OH-teez",what:"The Herdsman",ra:213.92,dec:19.18,star:"Arcturus",dist:"about 37 light years",lab:{0:"Arcturus"},
+  find:"Follow the curve of the Plough’s handle away from the pan: “arc to Arcturus”. Arcturus is bright and orange, and the rest of Boötes makes a kite shape above it.",
+  closer:["Arcturus itself","In binoculars its warm orange colour really shows."],
+  fact:"In 1933, light from Arcturus was used to switch on the Chicago World’s Fair. It was thought to have left the star during the city’s previous fair, in 1893."},
+ sirius:{name:"Sirius",say:"SIRRY-us",what:"The Dog Star, in Canis Major",ra:101.29,dec:-16.72,star:"Sirius",dist:"8.6 light years",lab:{0:"Sirius"},
+  find:"Follow Orion’s belt down and to the left. The very bright star you reach is Sirius. From the UK it never climbs high.",
+  closer:["M41","A star cluster just below Sirius, about 2,300 light years away."],
+  fact:"Sirius is the brightest star in the night sky. Low over the UK it often flashes red, green and blue as our air bends its light."}};
+function starAltAz(t,ra,dec,lat,lon){const d=t/DAY+2440587.5-2451545,lst=(280.46061837+360.98564736629*d+lon)*R,ha=lst-ra*R,ph=lat*R,de=dec*R;
+  const alt=Math.asin(Math.sin(ph)*Math.sin(de)+Math.cos(ph)*Math.cos(de)*Math.cos(ha));
+  const az=Math.atan2(Math.sin(ha),Math.cos(ha)*Math.sin(ph)-Math.tan(de)*Math.cos(ph))/R+180;return {alt:alt/R,az:(az%360+360)%360}}
+const DIRS=["north","north-east","east","south-east","south","south-west","west","north-west"];
+const dirWord=az=>DIRS[Math.round(az/45)%8];
+const heightWord=a=>a<10?"very low":a<25?"low":a<50?"halfway up":a<70?"high":"almost overhead";
+function constNow(k){const c=CINFO[k],now=Date.now();return starAltAz(now,c.ra,c.dec,D.lat,D.lon)}
+const skyDark=()=>sunPos(Date.now(),D.lat,D.lon)<-6;
+function liveTag(k){const p=constNow(k);return p.alt>3?(skyDark()?`Up now · ${dirWord(p.az)}`:`Above the horizon · ${dirWord(p.az)}`):"Below the horizon now"}
+function bigFig(k){const[s,l]=FIG[k],lab=(CINFO[k]||{}).lab||{};
+  return `<svg viewBox="-16 -12 132 124" class="bigfig" aria-hidden="true">${l.map(([a,b])=>`<line x1="${s[a][0]}" y1="${s[a][1]}" x2="${s[b][0]}" y2="${s[b][1]}" stroke="rgba(190,205,255,.5)" stroke-width=".8"/>`).join("")}
+   ${s.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r*3.2}" fill="rgba(255,255,255,.1)"/><circle cx="${x}" cy="${y}" r="${r*1.1}" fill="#fff"/>`).join("")}
+   ${Object.entries(lab).map(([i,v])=>{const[x,y,r]=s[i];let t=v,tx,ty,an;if(Array.isArray(v)){[t,tx,ty,an]=v}else{const right=x<62;tx=right?x+r*1.1+4:x-r*1.1-4;ty=y+2;an=right?"start":"end"}
+     return `<text x="${tx}" y="${ty}" font-size="6.2" fill="rgba(235,240,255,.85)" font-family="Atkinson Hyperlegible,Verdana,sans-serif" text-anchor="${an}">${t.split("\n").map((ln,j)=>`<tspan x="${tx}" dy="${j?7:0}">${ln}</tspan>`).join("")}</text>`}).join("")}</svg>`}
+function domeSVG(p,mp){const pt=(alt,az)=>{const r=44*(90-Math.max(0,alt))/90,a=az*R;return[50+r*Math.sin(a),50-r*Math.cos(a)]};
+  const up=p.alt>0;const[x,y]=pt(p.alt,p.az);const moonUp=mp&&mp.alt>0;const[mx,my]=moonUp?pt(mp.alt,mp.az):[0,0];
+  return `<svg viewBox="0 0 100 100" class="dome" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+   <circle cx="50" cy="50" r="29.3" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".6"/><circle cx="50" cy="50" r="14.7" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".6"/>
+   <line x1="50" y1="6" x2="50" y2="94" stroke="rgba(255,255,255,.08)" stroke-width=".6"/><line x1="6" y1="50" x2="94" y2="50" stroke="rgba(255,255,255,.08)" stroke-width=".6"/>
+   ${[["N",50,4.5],["E",96,52],["S",50,99.5],["W",4,52]].map(([t,a,b])=>`<text x="${a}" y="${b}" font-size="6" fill="rgba(235,240,255,.75)" text-anchor="middle" font-family="DM Mono,monospace">${t}</text>`).join("")}
+   ${moonUp?`<circle cx="${mx}" cy="${my}" r="3.2" fill="#F3EFDD" opacity=".85"/><text x="${mx}" y="${my-5}" font-size="4.6" fill="rgba(243,239,221,.85)" text-anchor="middle" font-family="Atkinson Hyperlegible,sans-serif">Moon</text>`:""}
+   ${up?`<circle cx="${x}" cy="${y}" r="7" fill="rgba(255,214,120,.25)"/><circle cx="${x}" cy="${y}" r="3.4" fill="#FFD678"/>`:`<text x="50" y="52" font-size="5.4" fill="rgba(235,240,255,.6)" text-anchor="middle" font-family="Atkinson Hyperlegible,sans-serif">Below the horizon</text>`}</svg>`}
+function bestTonight(k){const c=CINFO[k],{today,tomorrow,lat,lon}=D,now=Date.now();
+  const beforeRise=today.rise&&now<today.rise,set=beforeRise?null:today.set,rise=beforeRise?today.rise:tomorrow.rise;
+  const start=Math.max(now,(set||now)+60*6e4),end=(rise||now+12*36e5)-60*6e4;let best=null;
+  for(let t=start;t<=end;t+=10*6e4){const p=starAltAz(t,c.ra,c.dec,lat,lon);if(!best||p.alt>best.alt)best={t,...p}}
+  return best}
+function nextRise(k){const c=CINFO[k];let prev=constNow(k).alt;for(let t=Date.now()+10*6e4;t<Date.now()+DAY;t+=10*6e4){const a=starAltAz(t,c.ra,c.dec,D.lat,D.lon).alt;if(prev<=0&&a>0)return t;prev=a}return null}
+const cov=()=>document.getElementById("constov");
+function openConst(k){const c=CINFO[k];if(!c)return;const p=constNow(k),mp=moonPos(Date.now(),D.lat,D.lon),circ=c.dec>90-D.lat,b=bestTonight(k),fists=Math.max(1,Math.round(p.alt/10));
+  const nowLine=p.alt>3?`<b>${Math.round(p.alt)}° up in the ${dirWord(p.az)}</b>${heightWord(p.alt)} in the sky, about ${fists} fist${fists>1?"s":""} above the horizon with your arm held out.${skyDark()?"":" You’ll see it once it’s dark."}`
+    :`<b>Below the horizon right now</b>${(()=>{const r=nextRise(k);return r?`It rises in the ${dirWord(starAltAz(r,c.ra,c.dec,D.lat,D.lon).az)} at about ${fmt(r)}.`:""})()}`;
+  const chips=[circ?`Never sets from ${D.name}`:"",b&&b.alt>12?`Highest tonight around ${fmt(b.t)}, ${heightWord(b.alt)} in the ${dirWord(b.az)}`:b?"Too low to see well tonight":"",`Brightest star: ${c.star}, ${c.dist}`].filter(Boolean);
+  cov().innerHTML=`<div class="csheet" role="dialog" aria-modal="true" aria-labelledby="csT">
+   <div class="cshead"><div><small>${esc(c.what)}${c.say?` · say it “${c.say}”`:""}</small><h2 id="csT">${esc(c.name)}</h2></div><button type="button" class="nsbtn" id="csClose">Close</button></div>
+   <div class="csnow"><div class="domewrap">${domeSVG(p,mp)}<span>Centre: overhead<br>Edge: horizon</span></div><div><small>Right now from ${esc(D.name)}</small><p>${nowLine}</p></div></div>
+   <div class="figwrap">${bigFig(k)}</div>
+   <div class="cschips">${chips.map(x=>`<span>${esc(x)}</span>`).join("")}</div>
+   <div class="cssec"><h3>How to find it</h3><p>${esc(c.find)}</p></div>
+   <div class="cssec"><h3>Look closer with binoculars</h3><p><b>${esc(c.closer[0])}.</b> ${esc(c.closer[1])}</p></div>
+   <div class="cssec"><h3>Did you know</h3><p>${esc(c.fact)}</p></div></div>`;
+  cov().hidden=false;try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}const cb=document.getElementById("csClose");cb.onclick=closeConst;cb.focus()}
+function closeConst(){cov().hidden=true;cov().innerHTML=""}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let NIGHT=null;
+
+/* plain-English explainers and event pop-outs */
+const MOONSTORY={
+ "Wolf Moon":"January’s full moon. It’s said to be named after wolves heard howling in the depths of winter.",
+ "Snow Moon":"February’s full moon, named for the month that often brings the heaviest snow.",
+ "Worm Moon":"March’s full moon, from the time the ground thaws and earthworms reappear.",
+ "Pink Moon":"April’s full moon, named after pink spring wildflowers. The moon itself isn’t pink.",
+ "Flower Moon":"May’s full moon, when flowers are blooming everywhere.",
+ "Strawberry Moon":"June’s full moon, when wild strawberries ripen. Midsummer full moons stay low in the sky, so this one can look golden or even orange.",
+ "Buck Moon":"July’s full moon, when male deer grow new antlers.",
+ "Sturgeon Moon":"August’s full moon, when sturgeon were easiest to catch in North America’s Great Lakes.",
+ "Corn Moon":"September’s full moon when it isn’t the Harvest Moon, at the time corn was gathered in.",
+ "Harvest Moon":"The full moon closest to the autumn equinox, around 22 September. For several evenings in a row it rises soon after sunset, giving farmers extra light to bring in the harvest.",
+ "Hunter’s Moon":"The first full moon after the Harvest Moon. With the fields cleared, hunters could spot animals by its light and stock up for winter. Like the Harvest Moon, it rises soon after sunset for several evenings running.",
+ "Beaver Moon":"November’s full moon, when beaver traps were set before the swamps froze.",
+ "Cold Moon":"December’s full moon, near the longest, coldest nights. It climbs higher in the sky than any other full moon of the year."};
+const NAMENOTE="Full moons have traditional names for the time of year. Most of those used today were popularised by North American almanacs, drawing on Native American and early European folk names. They describe the season, not how the moon looks.";
+const PHASES={
+ "New moon":"The moon is between Earth and the Sun, so its sunlit side faces away from us and you can’t see it. These are the darkest nights of the month, the best for stars.",
+ "Waxing crescent":"Waxing means growing. A thin sliver lit on the right, low in the west after sunset. Look for the rest of the moon glowing faintly: that’s sunlight bounced off Earth, called earthshine.",
+ "First quarter":"Half the moon is lit: the right-hand half. It’s called a quarter because the moon is a quarter of the way round its monthly orbit. It’s the best time to see craters along the line between light and dark, even in binoculars.",
+ "Waxing gibbous":"Gibbous means more than half lit, from the Latin for hump-backed. Waxing means it’s still growing towards full.",
+ "Full moon":"The moon is opposite the Sun, so we see all of its sunlit side. It rises around sunset and sets around sunrise, lighting the whole night.",
+ "Waning gibbous":"Waning means shrinking. More than half lit, now on the left, and rising later each night.",
+ "Last quarter":"The left-hand half is lit. It rises around midnight and is best seen in the morning sky.",
+ "Waning crescent":"A thin sliver lit on the left, seen low in the east before dawn."};
+const PHASENOTE="A full cycle, from new moon to new moon, takes about 29½ days. From the UK, a growing moon is lit on the right and a shrinking one on the left.";
+const SHOWERX={
+ "Quadrantids":["the asteroid 2003 EH1",230,49,"Boötes, near the end of the Plough’s handle"],
+ "Lyrids":["Comet Thatcher",271,34,"Lyra, near the bright star Vega"],
+ "Eta Aquariids":["Halley’s Comet",338,-1,"Aquarius"],
+ "Perseids":["Comet Swift–Tuttle",48,58,"Perseus, beside Cassiopeia’s W"],
+ "Draconids":["Comet Giacobini–Zinner",262,54,"the head of Draco, the Dragon"],
+ "Orionids":["Halley’s Comet",95,16,"Orion, just above Betelgeuse"],
+ "Leonids":["Comet Tempel–Tuttle",152,22,"Leo’s Sickle"],
+ "Geminids":["the asteroid 3200 Phaethon",112,33,"Gemini, near Castor"],
+ "Ursids":["Comet Tuttle",217,76,"the Little Bear, near Polaris"]};
+const sec=(h,p)=>`<div class="cssec"><h3>${h}</h3><p>${p}</p></div>`;
+const hl=(small,big,p)=>`<div class="cshl"><small>${small}</small><b>${big}</b>${p?`<p>${p}</p>`:""}</div>`;
+function infoSheet(sub,title,body){cov().innerHTML=`<div class="csheet" role="dialog" aria-modal="true" aria-labelledby="csT"><div class="cshead"><div><small>${sub}</small><h2 id="csT">${title}</h2></div><button type="button" class="nsbtn" id="csClose">Close</button></div>${body}</div>`;
+  cov().hidden=false;try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}const cb=document.getElementById("csClose");cb.onclick=closeConst;cb.focus()}
+const dayF=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,weekday:"long",day:"numeric",month:"long"});
+const inDays=t=>{const d=Math.round((midOf(t)-D.mid)/DAY);return d<=0?"Tonight":d===1?"Tomorrow":`In ${d} days`};
+function fullRise(t){const eve=midOf(t)+(parts(t).hour<12?-12:12)*36e5,r=moonRiseSet(eve,D.lat,D.lon).rise;return r?{t:r,dir:dirWord(moonPos(r+10*6e4,D.lat,D.lon).az),when:midOf(r)===midOf(t)?fmt(r):`${fmt(r)} on ${dayF.format(new Date(r))}`}:null}
+function openTerm(k,arg){const now=Date.now(),{today,name}=D;
+ if(k==="golden")return infoSheet("For photos and evening walks","Golden hour",
+  hl(`Today in ${esc(name)}`,today.goldPM?`${fmt(today.goldPM)} until sunset at ${fmt(today.set)}`:"Not today","")+
+  sec("What it is","The last hour or so before sunset, and the first after sunrise. The sun is low, so its light passes through more air: shadows soften, colours warm up and everything glows.")+
+  sec("How we time it","Light Left counts golden hour from when the sun drops below 6° above the horizon until it sets. It lasts longer in winter and the further north you are, because the sun sinks at a shallower angle."));
+ if(k==="dark"){const N=NIGHT||{};return infoSheet("What astronomers call astronomical darkness","Dark sky",
+  hl(`Tonight in ${esc(name)}`,N.dusk?`${fmt(N.dusk)} – ${fmt(N.dawn)}`:"No true darkness tonight","")+
+  sec("What it is","After sunset the sky darkens in stages. Once the sun is more than 18° below the horizon, the last trace of twilight has gone and the sky is as dark as it gets.")+
+  sec("Why it matters","Faint stars, the Milky Way and meteors show best then. Get away from street lights and give your eyes 20 minutes to adjust.")+
+  sec("Summer nights","Around midsummer the sun never sinks 18° below the horizon anywhere in the UK, so the sky never gets fully dark."))}
+ if(k==="phase"){const m=moonPhase(now);return infoSheet("Tonight’s moon",m.name,hl("Right now",`${Math.round(m.ill*100)}% lit`,"")+sec("What it means",PHASES[m.name])+sec("The monthly cycle",PHASENOTE))}
+ if(k==="moonname"){const nf=phasesBetween(now,now+40*DAY).find(x=>x.full);const r=nf&&fullRise(nf.t);
+  return infoSheet("Next full moon",esc(arg),hl(nf?dayF.format(new Date(nf.t)):"",nf?inDays(nf.t):"",r?`Watch it rise in the ${r.dir} at about ${r.when}.`:"")+sec("Why it’s called that",MOONSTORY[arg]||"")+sec("About the names",NAMENOTE))}}
+let EVENTS=[];
+function openEvent(i){const it=EVENTS[i];if(!it)return;const {lat,lon,name}=D;
+ if(it.kind==="full"){const nm=it.name,r=fullRise(it.t);
+  return infoSheet(`Full moon · ${dayF.format(new Date(it.t))}`,esc(nm),
+   hl(inDays(it.t),r?`Rises in the ${r.dir} at ${r.when}`:"Full moon",`It’s exactly full at ${fmt(it.t)} on ${dayF.format(new Date(it.t))}, but it looks full the night before and after too.`)+
+   sec("Why it’s called that",MOONSTORY[nm]||"")+
+   sec("Watch it rise","A full moon rising looks huge near the horizon. It isn’t bigger: it’s a trick of the brain called the moon illusion. Hold up your little fingernail at arm’s length and it will cover the moon wherever it is in the sky.")+
+   sec("About the names",NAMENOTE))}
+ if(it.kind==="new"){const ev=dayEvents(midOf(it.t),lat,lon),dawn=ev.dusk?cross(ev.dusk,ev.dusk+14*36e5,lat,lon,-18,true):null;
+  return infoSheet(`New moon · ${dayF.format(new Date(it.t))}`,"New moon",
+   hl(inDays(it.t),ev.dusk?`Dark from ${fmt(ev.dusk)} to ${fmt(dawn)}`:"The darkest week of the month",`The few nights either side are the darkest of the month in ${esc(name)}.`)+
+   sec("What it is",PHASES["New moon"])+
+   sec("Look for the Milky Way","Away from towns, look for a faint, pale band of light across the sky. It’s the combined glow of billions of distant stars in our own galaxy."))}
+ if(it.kind==="shower"){const [parent,ra,dec,rn]=SHOWERX[it.name]||["",0,0,""],ev=dayEvents(midOf(it.t),lat,lon),nx=dayEvents(midOf(midOf(it.t)+36*36e5),lat,lon);
+  const start=(ev.set||it.t-4*36e5)+60*6e4,end=(nx.rise||it.t+8*36e5)-60*6e4;let best=null;
+  for(let t=start;t<=end;t+=10*6e4){const p=starAltAz(t,ra,dec,lat,lon);if(!best||p.alt>best.alt)best={t,...p}}
+  const ill=moonPhase(it.t).ill,mr=moonRiseSet(start,lat,lon);let moonLine;
+  if(ill<0.3)moonLine="Good news: there’s little moonlight to spoil it.";
+  else if(mr.set&&mr.set>start&&mr.set<end&&moonPos(start,lat,lon).alt>0)moonLine=`The moon is ${Math.round(ill*100)}% lit but sets at ${fmt(mr.set)}. Watch after that.`;
+  else if(mr.rise&&mr.rise>start&&mr.rise<end)moonLine=`The moon is ${Math.round(ill*100)}% lit and rises at ${fmt(mr.rise)}. Watch before then.`;
+  else moonLine=`The moon is ${Math.round(ill*100)}% lit, so it will hide the fainter meteors this time.`;
+  const wd=t=>{const o={};new Intl.DateTimeFormat("en-GB",{timeZone:TZ,weekday:"short",day:"numeric",month:"short"}).formatToParts(new Date(t)).forEach(p=>o[p.type]=p.value);return o},a1=wd(start),a2=wd(end),peak=`${a1.weekday} ${a1.day} – ${a2.weekday} ${a2.day} ${a2.month}`;
+  return infoSheet(`Meteor shower · peak night ${peak}`,esc(it.name),
+   hl(inDays(it.t),best&&best.alt>10?`Best around ${fmt(best.t)}`:"Peak night",moonLine)+
+   sec("What you’ll see",`${it.rate?`Up to ${it.rate} meteors an hour in perfect dark skies. From a town you’ll see far fewer. `:""}${esc(it.note)}`)+
+   sec("Where they come from",`Tiny grains of dust from ${parent}, burning up as Earth ploughs through its old trail. They seem to fly out of ${rn}${best&&best.alt>0?`, which is highest around ${fmt(best.t)} in the ${dirWord(best.az)}`:""}.`)+
+   sec("How to watch","Find somewhere dark, lie back and give your eyes 20 minutes. Look about halfway up the sky, a little away from where they come from: the trails are longer there. You don’t need binoculars, which would only shrink your view."))}
+ if(it.kind==="sol"){const ev=dayEvents(midOf(it.t),lat,lon),diff=D.today.len-ev.len;
+  return infoSheet(`Winter solstice · ${dayF.format(new Date(it.t))}`,"Shortest day",
+   hl(inDays(it.t),`${hm(ev.len)} of daylight`,`In ${esc(name)}: sunrise ${fmt(ev.rise)}, sunset ${fmt(ev.set)}. That’s ${hm(diff)} less than today.`)+
+   sec("What it is","The North Pole is tilted furthest from the Sun, so the Sun takes its lowest, shortest path across our sky. From the next day, the days start getting longer, slowly at first.")+
+   sec("A quirk worth knowing","The earliest sunset comes about a week before the shortest day, and the latest sunrise about a week after. It’s down to Earth’s oval orbit and its tilt."))}}
+document.addEventListener("click",e=>{const t=e.target.closest("[data-term]");if(t){e.preventDefault();openTerm(t.dataset.term,t.dataset.arg);return}const v=e.target.closest("[data-ev]");if(v)openEvent(+v.dataset.ev)});
+
+function nightLine(now){if(!NIGHT)return;const {dusk,dawn,rise}=NIGHT,m=moonPhase(now),H=document.getElementById("nhead"),Sy=document.getElementById("nsay");
+  document.getElementById("ndate").textContent=`${dateF.format(new Date(now))} · ${D.name}`;
+  const moon=`${m.name}, ${Math.round(m.ill*100)}% lit.`;
+  if(!dusk){H.textContent="No true darkness tonight";Sy.textContent=`The sun doesn’t sink far enough here at this time of year. ${moon}`;return}
+  if(now<dusk){H.textContent=`Dark sky in ${hm(dusk-now)}`;Sy.textContent=`Properly dark from ${fmt(dusk)} until ${fmt(dawn)}. ${moon}`}
+  else if(now<dawn){H.textContent="Dark sky now";Sy.textContent=`Good for stars until ${fmt(dawn)}, ${hm(dawn-now)} from now. ${moon}`}
+  else{H.textContent=`Sunrise in ${hm((rise||now)-now)}`;Sy.textContent="Dawn is breaking, so the faint stars have gone."}}
+function renderNight(){if(!D)return;const now=Date.now(),{name,lat,lon,today,tomorrow,yesterday}=D,ph=moonPhase(now),mm=parts(now).month-1;
+  const c=document.getElementById("bigmoon").getContext("2d");c.clearRect(0,0,240,240);drawMoonCtx(c,120,120,74,ph.p);
+  const ev=phasesBetween(now,now+75*DAY),nf=ev.find(x=>x.full),nn=ev.find(x=>!x.full);
+  document.getElementById("nmName").innerHTML=`<button type="button" class="term" data-term="phase">${ph.name} <i class="qi" aria-hidden="true">?</i></button>`;
+  {const fn=nf?fullName(nf.t):"";document.getElementById("nmTxt").innerHTML=`${Math.round(ph.ill*100)}% lit. ${nf?`The <button type="button" class="term" data-term="moonname" data-arg="${fn}">${fn} <i class="qi" aria-hidden="true">?</i></button> is full on ${dateF.format(new Date(nf.t))}.`:""}`}
+  const rs=moonRiseSet(now,lat,lon);
+  document.getElementById("nmRise").textContent=rs.up?`Up now${rs.set?`, sets at ${fmt(rs.set)}`:""}.`:`${rs.rise?`Rises at ${fmt(rs.rise)}`:"Doesn’t rise again today"}${rs.set?`, sets at ${fmt(rs.set)}`:""}.`;
+  const beforeRise=today.rise&&now<today.rise,dusk=beforeRise?yesterday.dusk:today.dusk,dawn=dusk?cross(dusk,dusk+14*36e5,lat,lon,-18,true):null;NIGHT={dusk,dawn,rise:beforeRise?today.rise:tomorrow.rise};nightLine(now);
+  document.getElementById("nDark").textContent=dusk?`${fmt(dusk)} – ${fmt(dawn)}`:"No true darkness tonight";
+  document.getElementById("nDarkNote").textContent=dusk?(ph.ill>0.7?"A bright moon will hide fainter stars, so stick to the brightest patterns.":ph.ill<0.25?"Little moonlight, so a good night for faint stars and the Milky Way.":`The moon is ${Math.round(ph.ill*100)}% lit. Look away from it for the faintest stars.`):"In summer the sun doesn’t sink far enough here for a fully dark sky. Bright stars still show.";
+  document.getElementById("consts").innerHTML=MONTHS[mm].map(([k,n,w,t])=>{const lt=liveTag(k);return `<button type="button" class="const" data-k="${k}" aria-label="${n}: more about it">${figSVG(k)}<b>${n}</b><span class="live${lt.startsWith("Below")?" down":""}">${lt}</span><span>${w}. ${t}</span><i class="more">Where and how to see it ›</i></button>`}).join("");
+  // coming up
+  const items=ev.map(x=>{const nm=x.full?fullName(x.t):"";return {t:x.t,kind:x.full?"full":"new",name:nm,title:x.full?`Full moon · ${nm}`:"New moon",sub:x.full?"Bright all night, rising around sunset.":"The darkest skies of the month."}});
+  const y=parts(now).year;
+  [y,y+1].forEach(yy=>SHOWERS.forEach(([m,d,n,rate,note])=>{const t=midOf(Date.UTC(yy,m-1,d,12))+22*36e5;if(t>now-12*36e5&&t<now+75*DAY){const ill=moonPhase(t).ill;
+    items.push({t,kind:"shower",name:n,rate,note,title:`${n} meteor shower`,sub:`${rate?`Up to ${rate} an hour in perfect skies. `:""}${note} Moon ${Math.round(ill*100)}% lit.`})}}));
+  const sol=Date.UTC(y,11,21,16);if(sol>now&&sol<now+75*DAY)items.push({t:sol,kind:"sol",title:"Shortest day",sub:"The longest night of the year."});
+  items.sort((a,b)=>a.t-b.t);EVENTS=items.slice(0,6);
+  const dF=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,weekday:"short",day:"numeric",month:"short"});
+  document.getElementById("events").innerHTML=EVENTS.map((it,i)=>{const p=dF.formatToParts(new Date(it.t)),get=k=>(p.find(x=>x.type===k)||{}).value;const dd=Math.round((midOf(it.t)-D.mid)/DAY);
+    return `<li><button type="button" class="evbtn" data-ev="${i}"><span class="d"><small>${get("month")}</small><strong>${get("day")}</strong></span><span class="w"><b>${it.title}</b><span>${it.sub}</span></span><span class="c">${dd<=0?"Tonight":dd===1?"Tomorrow":`${dd} days`} ›</span></button></li>`}).join("")}
+function setNight(on){nightMode=on;if(!on)closeConst();buzz();document.querySelector(".skyui").hidden=on;document.getElementById("nightui").hidden=!on;
+  document.getElementById("nightBtn").setAttribute("aria-pressed",on);document.getElementById("redlight").hidden=!(on&&redOn);document.body.classList.toggle("redmode",on&&redOn);
+  if(on){renderNight();document.getElementById("nightui").scrollTop=0;document.getElementById("backBtn").focus()}else document.getElementById("nightBtn").focus();draw(performance.now())}
+document.getElementById("nightBtn").onclick=()=>setNight(true);
+document.getElementById("backBtn").onclick=()=>setNight(false);
+document.getElementById("redBtn").onclick=()=>{redOn=!redOn;store("ll-red",redOn);buzz();document.getElementById("redBtn").setAttribute("aria-pressed",redOn);document.getElementById("redlight").hidden=!(nightMode&&redOn);document.body.classList.toggle("redmode",nightMode&&redOn)};
+document.getElementById("redBtn").setAttribute("aria-pressed",redOn);
+setInterval(()=>{if(nightMode)renderNight()},60000);
+document.getElementById("consts").addEventListener("click",e=>{const b=e.target.closest(".const");if(b)openConst(b.dataset.k)});
+document.getElementById("constov").addEventListener("click",e=>{if(e.target.id==="constov")closeConst()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!document.getElementById("constov").hidden)closeConst()});
+sel.addEventListener("change",()=>{if(nightMode)renderNight()});
+
+/* people away */
+const CITIES=[["Tokyo","Asia/Tokyo",35.68,139.69],["Seoul","Asia/Seoul",37.57,126.98],["Beijing","Asia/Shanghai",39.90,116.40],["Hong Kong","Asia/Hong_Kong",22.32,114.17],["Singapore","Asia/Singapore",1.35,103.82],["Bangkok","Asia/Bangkok",13.76,100.50],["Bali","Asia/Makassar",-8.65,115.22],["Delhi","Asia/Kolkata",28.61,77.21],["Dubai","Asia/Dubai",25.20,55.27],["Sydney","Australia/Sydney",-33.87,151.21],["Perth","Australia/Perth",-31.95,115.86],["Auckland","Pacific/Auckland",-36.85,174.76],["Cape Town","Africa/Johannesburg",-33.92,18.42],["Nairobi","Africa/Nairobi",-1.29,36.82],["Cairo","Africa/Cairo",30.04,31.24],["Istanbul","Europe/Istanbul",41.01,28.98],["Athens","Europe/Athens",37.98,23.73],["Paris","Europe/Paris",48.86,2.35],["Madrid","Europe/Madrid",40.42,-3.70],["Lisbon","Europe/Lisbon",38.72,-9.14],["Rome","Europe/Rome",41.90,12.50],["Berlin","Europe/Berlin",52.52,13.40],["Reykjavík","Atlantic/Reykjavik",64.15,-21.94],["New York","America/New_York",40.71,-74.01],["Toronto","America/Toronto",43.65,-79.38],["Chicago","America/Chicago",41.88,-87.63],["Los Angeles","America/Los_Angeles",34.05,-118.24],["Vancouver","America/Vancouver",49.28,-123.12],["Mexico City","America/Mexico_City",19.43,-99.13],["São Paulo","America/Sao_Paulo",-23.55,-46.63],["Buenos Aires","America/Argentina/Buenos_Aires",-34.60,-58.38],["Honolulu","Pacific/Honolulu",21.31,-157.86]];
+let people=load("ll-people",[]);
+const fmts={};
+function tzParts(t,tz){if(!fmts[tz])fmts[tz]=new Intl.DateTimeFormat("en-GB",{timeZone:tz,weekday:"long",day:"numeric",month:"numeric",year:"numeric",hour:"numeric",minute:"numeric",hourCycle:"h23"});const o={};fmts[tz].formatToParts(new Date(t)).forEach(p=>o[p.type]=p.value);return o}
+const awake=(t,tz)=>{const h=+tzParts(t,tz).hour;return h>=8&&h<22};
+function tzTime(t,tz){const o=tzParts(t,tz);return `${o.hour.padStart(2,"0")}:${o.minute.padStart(2,"0")}`}
+function ukDate(t){const p=parts(t);return `${p.year}-${String(p.month).padStart(2,"0")}-${String(p.day).padStart(2,"0")}`}
+function prunePeople(){const today=ukDate(Date.now()),before=people.length;people=people.filter(p=>!p.until||p.until>=today);if(people.length!==before)store("ll-people",people)}
+function callWindow(tz,now){let st=null,en=null;for(let t=now;t<now+DAY;t+=15*6e4){const ok=awake(t,TZ)&&awake(t,tz);if(ok&&st===null)st=t;if(!ok&&st!==null){en=t;break}}if(st!==null&&en===null)en=now+DAY;return st===null?null:[st,en]}
+function personState(p,now){const c=CITIES.find(x=>x[0]===p.city)||CITIES[0],[city,tz,lat,lon]=c,e=sunPos(now,lat,lon);
+  const them=awake(now,tz),me=awake(now,TZ);let label,dot;
+  if(them&&me){label="Good time to call";dot="#4FBF83"}else if(!them){label="Probably asleep";dot="#9AA7D6"}else{label="Late for you";dot="#F2B84B"}
+  return {city,tz,e,label,dot,sky:e>0?"day":e>-12?"dusk":"night"}}
+function renderPeople(){prunePeople();const now=Date.now(),L=document.getElementById("plist");
+  if(!people.length){L.innerHTML=`<div class="pempty">No one away right now.<br>Tap “Add someone” to keep their time handy.</div>`}
+  else L.innerHTML=people.map(p=>{const st=personState(p,now),o=tzParts(now,st.tz),w=callWindow(st.tz,now);
+   const myDay=dateF.format(new Date(now)).split(" ")[0],their=o.weekday;
+   const win=w?(w[0]<=now?`Good to call until ${fmt(w[1])} your time.`:`Best time to call: ${midOf(w[0])===D.mid?"":"tomorrow "}${fmt(w[0])} – ${fmt(w[1])} your time (${tzTime(w[0],st.tz)}–${tzTime(w[1],st.tz)} theirs).`):"No easy overlap today: one of you is always asleep.";
+   const back=p.until?` · home ${new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"}).format(new Date(p.until+"T12:00:00"))}`:"";
+   return `<div class="pcard ${st.sky}"><div class="ptop"><div><b>${escH(p.name)}</b><small>in ${st.city}${back}</small></div><button class="pedit" data-id="${p.id}">Edit</button></div>
+    <div class="ptime">${tzTime(now,st.tz)}<span>${their!==myDay?their:"today"}</span></div>
+    <span class="status" style="--dot:${st.dot}"><i></i>${st.label}</span><p class="window">${win}</p></div>`}).join("");
+  renderAway()}
+function renderAway(){const now=Date.now();document.getElementById("away").innerHTML=people.map(p=>{const st=personState(p,now);return `<button data-tab="pe">${escH(p.name)} · ${tzTime(now,st.tz)} ${st.e>0?"☀︎":"☾"}</button>`}).join("")}
+const escH=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+document.getElementById("away").addEventListener("click",e=>{if(e.target.closest("button"))tab("pe")});
+const pCity=document.getElementById("pCity");pCity.innerHTML=CITIES.map(c=>`<option>${c[0]}</option>`).join("");
+let pEditing=null;
+function openPerson(p){pEditing=p||null;document.getElementById("psTitle").textContent=p?"Edit":"Add someone";document.getElementById("pDel").hidden=!p;
+  document.getElementById("pName").value=p?p.name:"";pCity.value=p?p.city:"Tokyo";document.getElementById("pUntil").value=p?p.until||"":"";document.getElementById("pUntil").min=ukDate(Date.now());
+  pPrev();document.getElementById("pscrim").hidden=false;document.getElementById("pName").focus()}
+function pPrev(){const st=personState({city:pCity.value},Date.now());document.getElementById("pPreview").innerHTML=`It’s <b>${tzTime(Date.now(),st.tz)}</b> in ${st.city} right now.`}
+pCity.addEventListener("change",pPrev);
+document.getElementById("addPerson").onclick=()=>openPerson(null);
+document.getElementById("plist").addEventListener("click",e=>{const b=e.target.closest(".pedit");if(b)openPerson(people.find(p=>p.id==b.dataset.id))});
+const closeP=()=>{document.getElementById("pscrim").hidden=true};
+document.getElementById("pCancel").onclick=closeP;
+document.getElementById("pscrim").addEventListener("click",e=>{if(e.target.id==="pscrim")closeP()});
+document.getElementById("pSave").onclick=()=>{const name=document.getElementById("pName").value.trim()||pCity.value,rec={id:pEditing?pEditing.id:Date.now(),name,city:pCity.value,until:document.getElementById("pUntil").value||""};
+  if(pEditing)Object.assign(pEditing,rec);else people.push(rec);store("ll-people",people);buzz();renderPeople();closeP()};
+document.getElementById("pDel").onclick=()=>{people=people.filter(p=>p!==pEditing);store("ll-people",people);renderPeople();closeP()};
+setInterval(()=>{renderAway();if(!document.getElementById("peopleView").hidden)renderPeople()},30000);
+
+/* since the solstice, sharing, first-run */
+function solsticeLine(now){const y=parts(now).year,jun=Date.UTC(y,5,21),dec=Date.UTC(y,11,21),decPrev=Date.UTC(y-1,11,21);
+  let ref,word;if(now>=jun&&now<dec){ref=jun;word="midsummer"}else{ref=now>=dec?dec:decPrev;word="the shortest day"}
+  const then=dayEvents(midOf(ref+12*36e5),D.lat,D.lon).len,diff=D.today.len-then;
+  return {text:`Since ${word}, ${D.name} has ${diff<0?"lost":"gained"} ${hm(diff)} of daylight.`,diff}}
+document.getElementById("shareBtn").onclick=()=>{const s=solsticeLine(Date.now()),d=D.today.len-D.yesterday.len;
+  const txt=`☀︎ ${D.name} gets ${hm(D.today.len)} of daylight today, ${Math.abs(Math.round(d/1000/60*10)/10)} min ${d<0?"less":"more"} than yesterday. Sunset ${fmt(D.today.set)}. ${s.text} (Light Left)`;
+  const t=document.getElementById("toast");const ok=()=>{t.textContent="Copied. Paste it anywhere.";setTimeout(()=>t.textContent="",3000)};
+  try{navigator.clipboard.writeText(txt).then(ok).catch(()=>{t.textContent=txt})}catch(e){t.textContent=txt}buzz()};
+function firstRun(){const w=document.getElementById("welcome"),visits=load("ll-visits",0)+1;store("ll-visits",visits);
+  if(!load("ll-welcomed",false)){w.innerHTML=`<b>The clock that follows the sun</b><p>Watch the light change through the day. Flip to night mode for the moon and stars, set alarms that move with sunrise, and keep a clock for anyone who’s away.</p><button id="wOk">Got it</button>`;w.hidden=false;
+    document.getElementById("wOk").onclick=()=>{store("ll-welcomed",true);w.hidden=true}}
+  else if(visits>=3&&!load("ll-homehint",false)){w.innerHTML=`<b>Keep Light Left on your home screen</b><p>On iPhone, tap Share then “Add to Home Screen”. On Android, tap ⋮ then “Add to Home screen”.</p><button id="wOk">Done</button>`;w.hidden=false;
+    document.getElementById("wOk").onclick=()=>{store("ll-homehint",true);w.hidden=true}}}
+
+/* tabs */
+function tab(which){const sky=which==="sky";document.getElementById("skyView").hidden=!sky;document.getElementById("alarmView").hidden=which!=="al";document.getElementById("peopleView").hidden=which!=="pe";document.getElementById("tabPe").setAttribute("aria-selected",which==="pe");if(which==="pe")renderPeople();document.getElementById("redlight").hidden=!(sky&&nightMode&&redOn);document.body.classList.toggle("redmode",sky&&nightMode&&redOn);
+  document.getElementById("tabSky").setAttribute("aria-selected",sky);document.getElementById("tabAl").setAttribute("aria-selected",which==="al");if(sky){resize();draw(performance.now())}else if(which==="al")renderList()}
+document.getElementById("tabSky").onclick=()=>tab("sky");document.getElementById("tabAl").onclick=()=>tab("al");document.getElementById("tabPe").onclick=()=>tab("pe");
+
+prunePeople();compute();resize();tick();draw(0);renderAway();firstRun();setInterval(tick,1000);setInterval(renderList,60000);requestAnimationFrame(loop);keepAwake();
+</script>
+
+<script>
+if("serviceWorker" in navigator){addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{})})}
+</script>
+</body>
+</html>
