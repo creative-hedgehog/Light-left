@@ -1,0 +1,136 @@
+name: Build Android app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the website files
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Copy the website into the app
+        run: |
+          mkdir -p www
+          cp index.html manifest.webmanifest privacy.html *.png www/
+          # The app version doesn't need the website's offline helper
+          sed -i 's#navigator.serviceWorker.register("sw.js")#Promise.resolve()#' www/index.html
+          cat > www/native.js <<'EOF'
+          (function () {
+            var C = window.Capacitor;
+            if (!C || !C.isNativePlatform || !C.isNativePlatform()) return;
+            var LN = C.Plugins && C.Plugins.LocalNotifications;
+            if (!LN) return;
+            if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+            var hint = document.querySelector("#alarmView .hint");
+            if (hint) hint.textContent = "Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms go off even when your phone is locked.";
+            var ready = false, timer = null;
+            var TEXT = { time: ["Time to get up", "Your Light Left alarm"], rise: ["Good morning", "The sun is coming up"], gold: ["Golden hour", "The best light of the day starts now"], set: ["Sunset", "The sun is going down"], dark: ["Look up", "It's properly dark now: a good time for stars"] };
+            function times(a) {
+              var out = [], now = Date.now(), place = PLACES[idx];
+              for (var d = 0; d < 31 && out.length < 30; d++) {
+                var mid = midOf(now + d * DAY + 12 * 36e5), t = null;
+                if (a.type === "time") { var hm = String(a.time || "07:00").split(":"); t = mid + (Number(hm[0]) * 60 + Number(hm[1])) * 6e4; }
+                else { var ev = dayEvents(mid, place[1], place[2]); t = { rise: ev.rise, gold: ev.goldPM, set: ev.set, dark: ev.dusk }[a.type]; if (t) t -= (a.off || 0) * 6e4; }
+                if (t && t > now + 30000) out.push(t);
+              }
+              return out;
+            }
+            async function sync() {
+              if (!ready) return;
+              try { var p = await LN.getPending(); if (p.notifications.length) await LN.cancel({ notifications: p.notifications.map(function (n) { return { id: n.id }; }) }); } catch (e) {}
+              var list = [];
+              alarms.forEach(function (a, i) {
+                if (!a.on) return;
+                var tx = TEXT[a.type] || TEXT.time;
+                times(a).forEach(function (t, j) {
+                  list.push({ id: (i + 1) * 1000 + j, title: tx[0], body: tx[1] + " · " + PLACES[idx][0], channelId: "ll-alarms", schedule: { at: new Date(t), allowWhileIdle: true } });
+                });
+              });
+              if (list.length) { try { await LN.schedule({ notifications: list.slice(0, 200) }); } catch (e) { console.log("Light Left: scheduling failed", e); } }
+            }
+            function later() { clearTimeout(timer); timer = setTimeout(sync, 800); }
+            var orig = planAlarms;
+            planAlarms = function () { var r = orig.apply(this, arguments); later(); return r; };
+            ring = function () {};
+            document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") later(); });
+            (async function () {
+              try { var perm = await LN.checkPermissions(); if (perm.display !== "granted") await LN.requestPermissions(); } catch (e) {}
+              try { await LN.createChannel({ id: "ll-alarms", name: "Alarms", description: "Sunrise, golden hour and other Light Left alarms", importance: 5, visibility: 1, vibration: true, lights: true }); } catch (e) {}
+              ready = true;
+              sync();
+            })();
+          })();
+          EOF
+          sed -i 's#</body>#<script src="native.js"></script>\n</body>#' www/index.html
+          grep -c "native.js" www/index.html
+
+      - name: Create the Android project
+        run: |
+          echo '{"name":"light-left","version":"1.0.0","private":true}' > package.json
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/local-notifications@6
+          npx cap init "Light Left" io.github.creativehedgehog.lightleft --web-dir www
+          npx cap add android
+
+      - name: Allow notifications and exact alarm times
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />#' $M
+          grep -n "permission" $M
+
+      - name: App icon and splash screen
+        continue-on-error: true
+        run: |
+          pip install --quiet pillow
+          mkdir -p assets
+          python3 - <<'EOF'
+          from PIL import Image
+          icon = Image.open("icon-512.png").convert("RGB").resize((1024, 1024), Image.LANCZOS)
+          icon.save("assets/icon-only.png")
+          splash = Image.new("RGB", (2732, 2732), (11, 18, 48))
+          small = icon.resize((640, 640), Image.LANCZOS)
+          splash.paste(small, ((2732 - 640) // 2, (2732 - 640) // 2))
+          splash.save("assets/splash.png")
+          splash.save("assets/splash-dark.png")
+          EOF
+          npx --yes @capacitor/assets@3 generate --android --iconBackgroundColor "#0B1230" --iconBackgroundColorDark "#0B1230" --splashBackgroundColor "#0B1230" --splashBackgroundColorDark "#0B1230"
+
+      - name: Copy everything into the app
+        run: npx cap sync android
+
+      - name: Build the app
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../light-left.apk
+
+      - name: Publish the download link
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete app-latest --yes --cleanup-tag || true
+          gh release create app-latest light-left.apk --title "Light Left for Android" --notes "Test version, built automatically from the website files." --latest
