@@ -47,7 +47,7 @@ jobs:
             var hint = document.querySelector("#alarmView .hint");
             if (hint) hint.textContent = "Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms go off even when your phone is locked.";
             var ready = false, timer = null;
-            var TEXT = { time: ["Time to get up", "Your Light Left alarm"], rise: ["Good morning", "The sun is coming up"], gold: ["Golden hour", "The best light of the day starts now"], set: ["Sunset", "The sun is going down"], dark: ["Look up", "It's properly dark now: a good time for stars"] };
+            var TEXT = { time: ["Time to get up", "Your Light Dial alarm"], rise: ["Good morning", "The sun is coming up"], gold: ["Golden hour", "The best light of the day starts now"], set: ["Sunset", "The sun is going down"], dark: ["Look up", "It's properly dark now: a good time for stars"] };
             function times(a) {
               var out = [], now = Date.now(), place = PLACES[idx];
               for (var d = 0; d < 31 && out.length < 30; d++) {
@@ -69,7 +69,7 @@ jobs:
                   list.push({ id: (i + 1) * 1000 + j, title: tx[0], body: tx[1] + " · " + PLACES[idx][0], channelId: "ll-alarms", schedule: { at: new Date(t), allowWhileIdle: true } });
                 });
               });
-              if (list.length) { try { await LN.schedule({ notifications: list.slice(0, 200) }); } catch (e) { console.log("Light Left: scheduling failed", e); } }
+              if (list.length) { try { await LN.schedule({ notifications: list.slice(0, 200) }); } catch (e) { console.log("Light Dial: scheduling failed", e); } }
             }
             function later() { clearTimeout(timer); timer = setTimeout(sync, 800); }
             var orig = planAlarms;
@@ -78,7 +78,7 @@ jobs:
             document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") later(); });
             (async function () {
               try { var perm = await LN.checkPermissions(); if (perm.display !== "granted") await LN.requestPermissions(); } catch (e) {}
-              try { await LN.createChannel({ id: "ll-alarms", name: "Alarms", description: "Sunrise, golden hour and other Light Left alarms", importance: 5, visibility: 1, vibration: true, lights: true }); } catch (e) {}
+              try { await LN.createChannel({ id: "ll-alarms", name: "Alarms", description: "Sunrise, golden hour and other Light Dial alarms", importance: 5, visibility: 1, vibration: true, lights: true }); } catch (e) {}
               ready = true;
               sync();
             })();
@@ -91,7 +91,7 @@ jobs:
         run: |
           echo '{"name":"light-left","version":"1.0.0","private":true}' > package.json
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/local-notifications@6
-          npx cap init "Light Left" io.github.creativehedgehog.lightleft --web-dir www
+          npx cap init "Light Dial" io.github.creativehedgehog.lightleft --web-dir www
           npx cap add android
 
       - name: Allow notifications and exact alarm times
@@ -133,4 +133,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete app-latest --yes --cleanup-tag || true
-          gh release create app-latest light-left.apk --title "Light Left for Android" --notes "Test version, built automatically from the website files." --latest
+          gh release create app-latest light-left.apk --title "Light Dial for Android" --notes "Test version, built automatically from the website files." --latest

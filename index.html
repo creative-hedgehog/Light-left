@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Light Left</title>
+<title>Light Dial: Day &amp; Night Clock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Atkinson+Hyperlegible:wght@400;700&family=DM+Mono:wght@400;500&display=swap">
 <meta name="description" content="The clock that follows the sun: light left today, golden hour, the night sky and sun alarms for anywhere in the UK.">
@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Light Left">
-<link rel="manifest" href="manifest.webmanifest?v=2">
+<meta name="apple-mobile-web-app-title" content="Light Dial">
+<link rel="manifest" href="manifest.webmanifest?v=3">
 <link rel="icon" type="image/png" href="favicon-v2.png">
 <link rel="apple-touch-icon" href="apple-touch-icon-v2.png">
 <style>
@@ -297,10 +297,10 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
 <section class="view" id="alarmView" role="tabpanel" aria-label="Alarms" hidden>
   <div class="wrap">
     <div class="ahead"><h1>Alarms</h1><button class="add" id="addBtn">+ New alarm</button></div>
-    <p class="hint">Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms ring while Light Left is open on your screen.</p>
+    <p class="hint">Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms ring while Light Dial is open on your screen.</p>
     <div class="list" id="list"></div>
     <button class="test" id="testBtn">▶ Hear today’s sky song</button>
-    <p class="hint" style="text-align:center"><a href="privacy.html" style="color:inherit">Privacy</a> · Light Left keeps everything on your device.</p>
+    <p class="hint" style="text-align:center"><a href="privacy.html" style="color:inherit">Privacy</a> · Light Dial keeps everything on your device.</p>
   </div>
 </section>
 
@@ -523,7 +523,7 @@ document.getElementById("testBtn").onclick=()=>preview("sky");
 /* alarm sounds: all made live in the browser, no audio files */
 const SOUNDS=[["sky","Sky song"],["sunrise","Slow sunrise"],["birds","Dawn chorus"],["bells","Bells"]];
 const SNDNOTE={sky:"Composed fresh from today’s real sky. The moon picks the notes and the weather joins in: rain patters if it’s raining, birds sing if it’s clear. You’ll know what it’s like outside before you open your eyes.",
- sunrise:"Starts almost silent and slowly brightens over a minute, like light filling the room.",birds:"A dawn chorus that grows from one bird to a garden full.",bells:"The classic Light Left chime."};
+ sunrise:"Starts almost silent and slowly brightens over a minute, like light filling the room.",birds:"A dawn chorus that grows from one bird to a garden full.",bells:"The classic Light Dial chime."};
 let master=null,sndT=null,pvT=null,SKY=null,NB=null;
 function noiseBuf(){if(!NB){NB=actx.createBuffer(1,actx.sampleRate*2,actx.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return NB}
 function noise(s,d,v,type,f,q,f2){const n=actx.createBufferSource(),fl=actx.createBiquadFilter(),g=actx.createGain();n.buffer=noiseBuf();n.loop=true;fl.type=type;fl.frequency.setValueAtTime(f,s);if(f2)fl.frequency.linearRampToValueAtTime(f2,s+d);fl.Q.value=q||1;
@@ -782,7 +782,7 @@ function openTerm(k,arg){const now=Date.now(),{today,name}=D;
  if(k==="golden")return infoSheet("For photos and evening walks","Golden hour",
   hl(`Today in ${esc(name)}`,today.goldPM?`${fmt(today.goldPM)} until sunset at ${fmt(today.set)}`:"Not today","")+
   sec("What it is","The last hour or so before sunset, and the first after sunrise. The sun is low, so its light passes through more air: shadows soften, colours warm up and everything glows.")+
-  sec("How we time it","Light Left counts golden hour from when the sun drops below 6° above the horizon until it sets. It lasts longer in winter and the further north you are, because the sun sinks at a shallower angle."));
+  sec("How we time it","Light Dial counts golden hour from when the sun drops below 6° above the horizon until it sets. It lasts longer in winter and the further north you are, because the sun sinks at a shallower angle."));
  if(k==="dark"){const N=nightWin();return infoSheet("What astronomers call astronomical darkness","Dark sky",
   hl(`Tonight in ${esc(name)}`,N.dusk?`${fmt(N.dusk)} – ${fmt(N.dawn)}`:"No true darkness tonight","")+
   sec("What it is","After sunset the sky darkens in stages. Once the sun is more than 18° below the horizon, the last trace of twilight has gone and the sky is as dark as it gets.")+
@@ -921,13 +921,13 @@ function solsticeLine(now){const y=parts(now).year,jun=Date.UTC(y,5,21),dec=Date
   const then=dayEvents(midOf(ref+12*36e5),D.lat,D.lon).len,diff=D.today.len-then;
   return {text:`Since ${word}, ${D.name} has ${diff<0?"lost":"gained"} ${hm(diff)} of daylight.`,diff}}
 document.getElementById("shareBtn").onclick=()=>{const s=solsticeLine(Date.now()),d=D.today.len-D.yesterday.len;
-  const txt=`☀︎ ${D.name} gets ${hm(D.today.len)} of daylight today, ${Math.abs(Math.round(d/1000/60*10)/10)} min ${d<0?"less":"more"} than yesterday. Sunset ${fmt(D.today.set)}. ${s.text} (Light Left)`;
+  const txt=`☀︎ ${D.name} gets ${hm(D.today.len)} of daylight today, ${Math.abs(Math.round(d/1000/60*10)/10)} min ${d<0?"less":"more"} than yesterday. Sunset ${fmt(D.today.set)}. ${s.text} (Light Dial)`;
   const t=document.getElementById("toast");const ok=()=>{t.textContent="Copied. Paste it anywhere.";setTimeout(()=>t.textContent="",3000)};
   try{navigator.clipboard.writeText(txt).then(ok).catch(()=>{t.textContent=txt})}catch(e){t.textContent=txt}buzz()};
 function firstRun(){const w=document.getElementById("welcome"),visits=load("ll-visits",0)+1;store("ll-visits",visits);
   if(!load("ll-welcomed",false)){w.innerHTML=`<b>The clock that follows the sun</b><p>Watch the light change through the day. Flip to night mode for the moon and stars, set alarms that move with sunrise, and keep a clock for anyone who’s away.</p><button id="wOk">Got it</button>`;w.hidden=false;
     document.getElementById("wOk").onclick=()=>{store("ll-welcomed",true);w.hidden=true}}
-  else if(visits>=3&&!load("ll-homehint",false)){w.innerHTML=`<b>Keep Light Left on your home screen</b><p>On iPhone, tap Share then “Add to Home Screen”. On Android, tap ⋮ then “Add to Home screen”.</p><button id="wOk">Done</button>`;w.hidden=false;
+  else if(visits>=3&&!load("ll-homehint",false)){w.innerHTML=`<b>Keep Light Dial on your home screen</b><p>On iPhone, tap Share then “Add to Home Screen”. On Android, tap ⋮ then “Add to Home screen”.</p><button id="wOk">Done</button>`;w.hidden=false;
     document.getElementById("wOk").onclick=()=>{store("ll-homehint",true);w.hidden=true}}}
 
 /* tabs */

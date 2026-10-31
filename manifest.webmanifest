@@ -1,6 +1,6 @@
 {
-  "name": "Light Left",
-  "short_name": "Light Left",
+  "name": "Light Dial: Day & Night Clock",
+  "short_name": "Light Dial",
   "description": "The clock that follows the sun.",
   "lang": "en-GB",
   "start_url": "./",
