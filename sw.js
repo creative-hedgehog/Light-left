@@ -1,5 +1,5 @@
 // Light Left offline support. Change the version name whenever you upload a new copy.
-const CACHE = "light-left-v2";
+const CACHE = "light-left-v3";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "favicon.png", "privacy.html"];
 
 self.addEventListener("install", e => {
