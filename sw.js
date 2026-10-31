@@ -1,5 +1,5 @@
 // Light Dial offline support. Change the version name whenever you upload a new copy.
-const CACHE = "light-left-v5";
+const CACHE = "light-left-v6";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon-192-v2.png", "icon-512-v2.png", "icon-maskable-512-v2.png", "apple-touch-icon-v2.png", "favicon-v2.png", "privacy.html"];
 
 self.addEventListener("install", e => {
