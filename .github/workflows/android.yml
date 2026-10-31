@@ -107,7 +107,7 @@ jobs:
           mkdir -p assets
           python3 - <<'EOF'
           from PIL import Image
-          icon = Image.open("icon-512.png").convert("RGB").resize((1024, 1024), Image.LANCZOS)
+          icon = Image.open("icon-512-v2.png").convert("RGB").resize((1024, 1024), Image.LANCZOS)
           icon.save("assets/icon-only.png")
           splash = Image.new("RGB", (2732, 2732), (11, 18, 48))
           small = icon.resize((640, 640), Image.LANCZOS)
