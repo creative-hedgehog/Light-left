@@ -22,6 +22,16 @@ body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-wi
 #alarmView .wrap,#peopleView .wrap{padding-top:calc(20px + env(safe-area-inset-top,0px))!important}
 .legal{position:absolute;right:max(14px,env(safe-area-inset-right,0px));bottom:10px;font:12px system-ui,sans-serif;opacity:.6;color:var(--muted)}
 </style>
+<style>
+/* v2 additions: weather line, consistent tappable labels, see-more, alarm sounds */
+.wx{all:unset;cursor:pointer;font-family:var(--mono);font-size:13px;opacity:.85;margin:6px 0 0;width:max-content;max-width:100%;border-bottom:1px dotted currentColor;line-height:1.5}
+.wx:focus-visible,.seemore:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+button.pill small{text-decoration:underline dotted;text-underline-offset:3px}
+.seemore{all:unset;cursor:pointer;display:block;margin:14px 0 2px;font-weight:700;font-size:14px;border-bottom:1px dotted currentColor;width:max-content}
+.seg.seg4{grid-template-columns:repeat(2,1fr)}
+.sndnote{font-size:13px;opacity:.75;margin:8px 0 0;line-height:1.45}
+.ring .sky{font-family:var(--mono);font-size:12px;opacity:.75;max-width:34ch}
+</style>
 </head>
 <body>
 <style>
@@ -238,6 +248,7 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
     </div>
     <div class="time" id="time">--:--</div>
     <p class="date" id="date">–</p>
+    <button type="button" class="wx" id="wx" hidden></button>
     <div class="away" id="away"></div>
     <p class="headline" id="headline">–</p>
     <p class="say" id="say">–</p>
@@ -262,13 +273,14 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
         <div><b id="nmName">–</b><p id="nmTxt">–</p><p class="soft" id="nmRise">–</p></div>
       </section>
       <section class="glass">
-        <h2>Best for stars <button type="button" class="qi qb" data-term="dark" aria-label="What does dark sky mean?">?</button></h2>
+        <h2><button type="button" class="term" data-term="dark">Best for stars</button></h2>
         <p class="bigline" id="nDark">–</p>
         <p class="soft" id="nDarkNote">–</p>
       </section>
       <section class="glass">
         <h2>Look for this month · tap one for more</h2>
         <div class="consts" id="consts"></div>
+        <button type="button" class="seemore" id="seeAll" aria-expanded="false">See more star patterns</button>
         <p class="soft">Around 10pm. Positions shift about an hour earlier each fortnight.</p>
       </section>
       <section class="glass">
@@ -287,7 +299,7 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
     <div class="ahead"><h1>Alarms</h1><button class="add" id="addBtn">+ New alarm</button></div>
     <p class="hint">Set an ordinary alarm, or one that follows the sun and moves with the seasons. Alarms ring while Light Left is open on your screen.</p>
     <div class="list" id="list"></div>
-    <button class="test" id="testBtn">▶ Hear the alarm sound</button>
+    <button class="test" id="testBtn">▶ Hear today’s sky song</button>
     <p class="hint" style="text-align:center"><a href="privacy.html" style="color:inherit">Privacy</a> · Light Left keeps everything on your device.</p>
   </div>
 </section>
@@ -323,6 +335,7 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
     <div><span class="lab">Ring at</span><div class="seg" id="segType"></div></div>
     <div id="timeBox"><span class="lab">Time</span><input type="time" id="timeIn" value="07:00"></div>
     <div id="offBox"><span class="lab">When</span><div class="seg" id="segOff"></div></div>
+    <div><span class="lab">Sound</span><div class="seg seg4" id="segSnd"></div><p class="sndnote" id="sndNote"></p></div>
     <p class="preview" id="preview"></p>
     <div class="row"><button class="cancel" id="cancelBtn">Cancel</button><button class="save" id="saveBtn">Save</button></div>
     <button class="del" id="delBtn" hidden>Delete alarm</button>
@@ -333,6 +346,7 @@ button.pill{font:inherit;color:inherit;text-align:left;cursor:pointer}button.pil
   <div class="big" id="ringTime">--:--</div>
   <h2 id="ringTitle">–</h2>
   <p id="ringTxt">–</p>
+  <p class="sky" id="ringSky"></p>
   <div class="btns"><button class="snooze" id="snoozeBtn">Snooze 9 min</button><button class="stop" id="stopBtn">Stop</button></div>
 </div>
 
@@ -383,7 +397,7 @@ const load=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:JSON.pa
 const sel=document.getElementById("place");
 sel.innerHTML=PLACES.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
 let idx=load("ll-place",15);if(!PLACES[idx])idx=15;sel.value=idx;
-sel.addEventListener("change",()=>{idx=+sel.value;store("ll-place",idx);compute();tick()});
+sel.addEventListener("change",()=>{idx=+sel.value;store("ll-place",idx);compute();tick();loadWx()});
 let D=null;
 function compute(){const now=Date.now(),[name,lat,lon]=PLACES[idx],mid=midOf(now);
   D={name,lat,lon,mid,today:dayEvents(mid,lat,lon),tomorrow:dayEvents(midOf(mid+36*36e5),lat,lon),yesterday:dayEvents(midOf(mid-12*36e5),lat,lon),day:parts(now).day};
@@ -409,7 +423,7 @@ function tick(){const now=Date.now();if(!D||parts(now).day!==D.day)compute();
     H.textContent=e>-6?"Twilight":`Sunrise in ${hm(rise-now)}`;
     S.textContent=e>-6?`The sun has gone, but the sky is still bright. ${dusk&&now<dusk?`Stars come out properly at ${fmt(dusk)}.`:""}`:`${m.name}, ${Math.round(m.ill*100)}% lit. ${m.ill<0.3?"A dark sky, good for stars.":m.ill>0.7?"Bright moonlight tonight.":""}`;
     pills=[["Dark sky from",dusk?fmt(dusk):"Not tonight"],["Moon",`${Math.round(m.ill*100)}%`],["Sunrise",fmt(rise)]]}
-  const TERMK={"Golden hour":"golden","Dark sky from":"dark","Moon":"phase"},pe=document.getElementById("pills"),ph2=pills.map(([a,b])=>TERMK[a]?`<button type="button" class="pill" data-term="${TERMK[a]}" aria-label="${a} ${b}. What does this mean?"><small>${a} <i class="qi" aria-hidden="true">?</i></small><b>${b}</b></button>`:`<div class="pill"><small>${a}</small><b>${b}</b></div>`).join("");
+  const TERMK={"Golden hour":"golden","Dark sky from":"dark","Moon":"phase","Sunrise":"sunrise","Sunset":"sunset"},pe=document.getElementById("pills"),ph2=pills.map(([a,b])=>TERMK[a]?`<button type="button" class="pill" data-term="${TERMK[a]}" aria-label="${a} ${b}. Tap for more."><small>${a}</small><b>${b}</b></button>`:`<div class="pill"><small>${a}</small><b>${b}</b></div>`).join("");
   if(pe.dataset.h!==ph2){pe.innerHTML=ph2;pe.dataset.h=ph2}
   const dark=e<-4;document.getElementById("skyView").classList.toggle("dark",dark);document.getElementById("skyView").style.setProperty("--skyfg",e>8?"#10223A":e>0?"#2A1606":"#F1F3FB");
   checkAlarms(now);if(reduce)draw(performance.now())}
@@ -477,12 +491,14 @@ function openSheet(a){editing=a||null;draft=a?{...a}:{id:Date.now(),type:"time",
   document.getElementById("timeIn").value=draft.time;renderSheet();document.getElementById("scrim").hidden=false;document.getElementById("saveBtn").focus()}
 function renderSheet(){document.getElementById("segType").innerHTML=TYPES.map(([k,l])=>`<button data-k="${k}" aria-pressed="${draft.type===k}">${l}</button>`).join("");
   document.getElementById("segOff").innerHTML=OFFS.map(([v,l])=>`<button data-v="${v}" aria-pressed="${draft.off===v}">${l}</button>`).join("");
+  document.getElementById("segSnd").innerHTML=SOUNDS.map(([k,l])=>`<button data-s="${k}" aria-pressed="${(draft.snd||"sky")===k}">${l}</button>`).join("");document.getElementById("sndNote").textContent=SNDNOTE[draft.snd||"sky"]+" Tap a sound to hear it.";
   document.getElementById("timeBox").hidden=draft.type!=="time";document.getElementById("offBox").hidden=draft.type==="time";
   const t=nextFor(draft,Date.now());document.getElementById("preview").innerHTML=t?`Next rings <b>${midOf(t)===D.mid?"today":"tomorrow"} at ${fmt(t)}</b> in ${D.name}.`:`There’s no proper dark sky in ${D.name} at this time of year.`}
 document.getElementById("segType").addEventListener("click",e=>{const b=e.target.closest("button");if(b){draft.type=b.dataset.k;if(draft.type==="dark")draft.off=0;renderSheet()}});
 document.getElementById("segOff").addEventListener("click",e=>{const b=e.target.closest("button");if(b){draft.off=+b.dataset.v;renderSheet()}});
+document.getElementById("segSnd").addEventListener("click",e=>{const b=e.target.closest("button");if(b){draft.snd=b.dataset.s;renderSheet();preview(draft.snd)}});
 document.getElementById("timeIn").addEventListener("input",e=>{draft.time=e.target.value||"07:00";renderSheet()});
-const closeSheet=()=>{document.getElementById("scrim").hidden=true};
+const closeSheet=()=>{document.getElementById("scrim").hidden=true;if(!ringing)stopSound()};
 document.getElementById("cancelBtn").onclick=closeSheet;
 document.getElementById("scrim").addEventListener("click",e=>{if(e.target.id==="scrim")closeSheet()});
 document.getElementById("saveBtn").onclick=()=>{draft.on=true;draft.fired=0;if(editing)Object.assign(editing,draft);else alarms.push(draft);unlock();save();planAlarms();keepAwake();closeSheet()};
@@ -494,20 +510,60 @@ function checkAlarms(now){if(ringing)return;
   for(const a of alarms){const t=targets[a.id];if(a.on&&t&&now>=t&&now-t<5*6e4&&a.fired!==t){a.fired=t;save();ring(a);planAlarms();return}}
   if(alarms.some(a=>targets[a.id]&&targets[a.id]<now-6e4))planAlarms()}
 function ring(a){ringing=a;const T={time:["Time to get up",`Sunrise in ${D.name} is at ${fmt(D.today.rise>Date.now()?D.today.rise:D.tomorrow.rise)}.`],rise:["Good morning",`The sun is coming up over ${D.name}.`],gold:["Golden hour","The best light of the day starts now."],set:["Sunset",`The sun is going down over ${D.name}.`],dark:["Look up","It’s properly dark now. A good time for stars."]}[a.type];
-  document.getElementById("ringTitle").textContent=T[0];document.getElementById("ringTxt").textContent=T[1];
+  document.getElementById("ringTitle").textContent=T[0];document.getElementById("ringTxt").textContent=T[1]+wxMorning();
   const p=parts(Date.now());document.getElementById("ringTime").textContent=`${String(p.hour).padStart(2,"0")}:${String(p.minute).padStart(2,"0")}`;
-  document.getElementById("ring").hidden=false;play();clearInterval(loopT);loopT=setInterval(play,4200);document.getElementById("stopBtn").focus()}
-function stopRing(){clearInterval(loopT);ringing=null;document.getElementById("ring").hidden=true}
+  document.getElementById("ring").hidden=false;startSound(a.snd||"sky",true);document.getElementById("ringSky").textContent=(a.snd||"sky")==="sky"?skyCaption():"";document.getElementById("stopBtn").focus()}
+function stopRing(){stopSound();clearInterval(loopT);ringing=null;document.getElementById("ring").hidden=true}
 document.getElementById("stopBtn").onclick=stopRing;
 document.getElementById("snoozeBtn").onclick=()=>{snooze={a:ringing,t:Date.now()+9*6e4};stopRing()};
 function unlock(){try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume()}catch(e){}}
-function tone(f,s,d,v,type="sine",to){const o=actx.createOscillator(),gn=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,s);if(to)o.frequency.exponentialRampToValueAtTime(to,s+d*.6);gn.gain.setValueAtTime(1e-4,s);gn.gain.exponentialRampToValueAtTime(v,s+.02);gn.gain.exponentialRampToValueAtTime(1e-4,s+d);o.connect(gn).connect(actx.destination);o.start(s);o.stop(s+d+.05)}
+function tone(f,s,d,v,type="sine",to){const o=actx.createOscillator(),gn=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,s);if(to)o.frequency.exponentialRampToValueAtTime(to,s+d*.6);gn.gain.setValueAtTime(1e-4,s);gn.gain.exponentialRampToValueAtTime(v,s+.02);gn.gain.exponentialRampToValueAtTime(1e-4,s+d);o.connect(gn).connect(master||actx.destination);o.start(s);o.stop(s+d+.05)}
 function play(){unlock();if(!actx)return;const t=actx.currentTime+.05;[392,494,587,784].forEach((f,i)=>tone(f,t+i*.32,2.2,.18));for(let i=0;i<6;i++)tone(2600+Math.random()*900,t+1.4+i*.22+Math.random()*.1,.12,.05,"sine",3800+Math.random()*900)}
-document.getElementById("testBtn").onclick=play;
+document.getElementById("testBtn").onclick=()=>preview("sky");
+/* alarm sounds: all made live in the browser, no audio files */
+const SOUNDS=[["sky","Sky song"],["sunrise","Slow sunrise"],["birds","Dawn chorus"],["bells","Bells"]];
+const SNDNOTE={sky:"Composed fresh from today’s real sky. The moon picks the notes and the weather joins in: rain patters if it’s raining, birds sing if it’s clear. You’ll know what it’s like outside before you open your eyes.",
+ sunrise:"Starts almost silent and slowly brightens over a minute, like light filling the room.",birds:"A dawn chorus that grows from one bird to a garden full.",bells:"The classic Light Left chime."};
+let master=null,sndT=null,pvT=null,SKY=null,NB=null;
+function noiseBuf(){if(!NB){NB=actx.createBuffer(1,actx.sampleRate*2,actx.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return NB}
+function noise(s,d,v,type,f,q,f2){const n=actx.createBufferSource(),fl=actx.createBiquadFilter(),g=actx.createGain();n.buffer=noiseBuf();n.loop=true;fl.type=type;fl.frequency.setValueAtTime(f,s);if(f2)fl.frequency.linearRampToValueAtTime(f2,s+d);fl.Q.value=q||1;
+  g.gain.setValueAtTime(1e-4,s);g.gain.linearRampToValueAtTime(v,s+Math.min(1.2,d/3));g.gain.setValueAtTime(v,s+d-1);g.gain.linearRampToValueAtTime(1e-4,s+d);n.connect(fl).connect(g).connect(master||actx.destination);n.start(s);n.stop(s+d+.1)}
+const drop=(s,v)=>tone(1800+Math.random()*2400,s,.04,v,"sine",900+Math.random()*600);
+function chirp(s,v){const f=2400+Math.random()*1500,n=2+Math.floor(Math.random()*4),g=.07+Math.random()*.06;for(let i=0;i<n;i++)tone(f*(1+Math.random()*.15),s+i*g,.1,v,"sine",f*(1.3+Math.random()*.4))}
+function trill(s,v){const f=3000+Math.random()*1200;for(let i=0;i<10;i++)tone(i%2?f:f*1.12,s+i*.045,.05,v)}
+function whistle(s,v){const f=1600+Math.random()*900;tone(f,s,.5,v,"sine",f*1.5);tone(f*1.5,s+.55,.35,v*.8,"sine",f*1.2)}
+function rng(seed){return()=>{seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296}}
+function skyRecipe(){const m=moonPhase(Date.now()),c=wxOk()?WX.cur.c:null,step=Math.round(m.p*8)%8,minor=m.p>0.5;
+  const wx=c==null?"none":c<=1?"clear":c<=3?"cloud":c<=48?"fog":(c>=71&&c<=77)||c===85||c===86?"snow":c>=95?"storm":"rain";
+  return {root:[196,220,247,262,294,330,294,247][step],key:["G","A","B","C","D","E","D","B"][step]+(minor?" minor":" major"),sc:minor?[0,3,5,7,10,12,15]:[0,2,4,7,9,12,14],wx,windy:wxOk()&&WX.cur.w>=30,seed:Math.floor(D.mid/DAY),phase:m.name}}
+const PAT={
+ bells(t){[392,494,587,784].forEach((f,i)=>tone(f,t+i*.32,2.2,.18));for(let i=0;i<6;i++)tone(2600+Math.random()*900,t+1.4+i*.22+Math.random()*.1,.12,.05,"sine",3800+Math.random()*900)},
+ sky(t,n){const R=SKY,r=rng(R.seed*7+n%4),nt=i=>R.root*Math.pow(2,R.sc[i]/12);
+  for(let i=0;i<6;i++){const k=Math.floor(r()*R.sc.length);tone(nt(k),t+i*.62,1.9,.13);tone(nt(k)*2,t+i*.62,1.1,.025,"triangle")}
+  tone(R.root/2,t,4.3,.08,"triangle");
+  if(R.wx==="rain"||R.wx==="storm"){noise(t,4.4,.05,"bandpass",2600,.6);for(let i=0;i<14;i++)drop(t+Math.random()*4,.03)}
+  if(R.wx==="storm"&&n%3===2)noise(t+1,3,.16,"lowpass",110,1);
+  if(R.wx==="clear")for(let i=0;i<2;i++)chirp(t+.8+Math.random()*3,.035);
+  if(R.wx==="cloud"||R.wx==="fog")tone(R.root*1.5,t,4.4,.045);
+  if(R.wx==="snow")for(let i=0;i<5;i++)tone(nt(4+Math.floor(r()*3))*4,t+Math.random()*4,.6,.02);
+  if(R.windy)noise(t,4.4,.05,"bandpass",400,2,1400)},
+ sunrise(t,n){const lv=Math.min(1,n/14),lv2=Math.min(1,(n+1)/14);
+  [0,4,7,11].forEach((st,i)=>{const o=actx.createOscillator(),f=actx.createBiquadFilter(),g=actx.createGain();o.type="sawtooth";o.frequency.value=130.8*Math.pow(2,st/12)*(1+(i-1.5)*.002);
+   f.type="lowpass";f.frequency.setValueAtTime(250+lv*lv*3200,t);f.frequency.linearRampToValueAtTime(250+lv2*lv2*3200,t+4.2);
+   g.gain.setValueAtTime(1e-4,t);g.gain.linearRampToValueAtTime(.05,t+.8);g.gain.setValueAtTime(.05,t+3.7);g.gain.linearRampToValueAtTime(1e-4,t+4.6);o.connect(f).connect(g).connect(master||actx.destination);o.start(t);o.stop(t+4.7)});
+  if(n>=10)[523,659,784].forEach((fq,i)=>tone(fq,t+.4+i*.5,2,.06+lv*.04))},
+ birds(t,n){for(let i=0,k=Math.min(8,1+n);i<k;i++){const s=t+Math.random()*4,x=Math.random();(x<.5?chirp:x<.8?whistle:trill)(s,.03+Math.random()*.03)}}};
+function startSound(snd,ramp,n0){unlock();if(!actx)return;stopSound();SKY=skyRecipe();master=actx.createGain();master.connect(actx.destination);const t0=actx.currentTime;
+  master.gain.setValueAtTime(ramp?.25:1,t0);if(ramp)master.gain.linearRampToValueAtTime(1,t0+45);
+  let n=n0||0;const f=PAT[snd]||PAT.sky,bar=()=>f(actx.currentTime+.05,n++);bar();sndT=setInterval(bar,4200)}
+function stopSound(){clearInterval(sndT);sndT=null;clearTimeout(pvT);if(master&&actx){const m=master,t=actx.currentTime;try{m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+.3)}catch(e){}setTimeout(()=>m.disconnect(),400)}master=null}
+function preview(snd){if(ringing)return;startSound(snd,false,{sunrise:8,birds:3}[snd]||0);pvT=setTimeout(()=>{if(!ringing)stopSound()},8400)}
+function skyCaption(){if(!SKY)return"";const W={rain:"rain",storm:"a storm",clear:"birdsong for clear skies",cloud:"a soft cloud chord",fog:"a soft fog chord",snow:"falling snow"}[SKY.wx];
+  return `Today’s sky song: ${SKY.phase.toLowerCase()} in ${SKY.key}${W?`, with ${W}`:""}${SKY.windy?" and wind":""}.`}
 async function keepAwake(){const any=alarms.some(a=>a.on);try{if(any&&!wake&&navigator.wakeLock){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null)}if(!any&&wake){wake.release();wake=null}}catch(e){}}
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){keepAwake();tick()}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){keepAwake();tick();loadWx()}});
 /* night sky mode */
-let nightMode=false,redOn=load("ll-red",false);
+let nightMode=false,redOn=load("ll-red",false),showAll=false;
 const buzz=()=>{try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}};
 function phaseTimes(k,full){ // Meeus ch.49, accurate to a few minutes
   const T=k/1236.85,r=x=>x*R;let jde=2451550.09766+29.530588861*k+0.00015437*T*T;
@@ -649,6 +705,29 @@ function openConst(k){const c=CINFO[k];if(!c)return;const p=constNow(k),mp=moonP
 function closeConst(){cov().hidden=true;cov().innerHTML=""}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let NIGHT=null;
+function nightWin(){const now=Date.now(),{today,tomorrow,yesterday,lat,lon}=D,br=today.rise&&now<today.rise,dusk=br?yesterday.dusk:today.dusk,dawn=dusk?cross(dusk,dusk+14*36e5,lat,lon,-18,true):null;return {dusk,dawn,rise:br?today.rise:tomorrow.rise}}
+/* weather: small and quiet. Open-Meteo, no key, town-level coordinates only */
+const WMO=c=>c===0?["☀︎","Clear"]:c<=2?["⛅︎","Partly cloudy"]:c===3?["☁︎","Cloudy"]:c<=48?["≋","Foggy"]:c<=57?["☂︎","Drizzle"]:c<=67?["☂︎","Rain"]:c<=77?["❄︎","Snow"]:c<=82?["☂︎","Showers"]:c<=86?["❄︎","Snow showers"]:["⚡︎","Thunderstorms"];
+let WX=null;
+const wxOk=()=>WX&&WX.i===idx&&Date.now()-WX.at<6*36e5;
+async function loadWx(force){const i0=idx,[,la,lo]=PLACES[i0],c=load("ll-wx",null);
+  WX=c&&c.i===i0?c:null;renderWx();if(WX&&Date.now()-WX.at<40*6e4&&!force)return;
+  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,weather_code,wind_speed_10m&hourly=cloud_cover&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FLondon&timeformat=unixtime&forecast_days=3`);
+   if(!r.ok)return;const j=await r.json();if(i0!==idx)return;
+   WX={i:i0,at:Date.now(),cur:{t:j.current.temperature_2m,c:j.current.weather_code,w:j.current.wind_speed_10m},h:j.hourly.time.map((t,k)=>[t*1000,j.hourly.cloud_cover[k]]),
+    d:j.daily.time.map((t,k)=>({c:j.daily.weather_code[k],hi:j.daily.temperature_2m_max[k],lo:j.daily.temperature_2m_min[k],p:j.daily.precipitation_probability_max[k]}))};
+   store("ll-wx",WX);renderWx();if(nightMode)renderNight()}catch(e){}}
+function renderWx(){const b=document.getElementById("wx");if(!wxOk()){b.hidden=true;return}
+  const [ic,w]=WMO(WX.cur.c),d=WX.d[0],txt=`${ic} ${Math.round(WX.cur.t)}° · ${w}${d&&d.p>=40?` · ${d.p}% chance of rain today`:""}`;
+  b.hidden=false;if(b.dataset.v!==txt){b.textContent=txt;b.dataset.v=txt;b.setAttribute("aria-label",`Weather now: ${txt}. Tap for today and tomorrow.`)}}
+function cloudBetween(a,b){if(!wxOk())return null;const xs=WX.h.filter(([t])=>t>=a-18e5&&t<=b).map(x=>x[1]);return xs.length?xs.reduce((s,x)=>s+x,0)/xs.length:null}
+const cloudLine=c=>c==null?"":c<20?"Clear skies forecast tonight.":c<45?"Mostly clear tonight.":c<75?"Patchy cloud tonight, so look for gaps.":"Cloudy tonight, so the stars may stay hidden.";
+function openWx(){if(!wxOk())return;const [,w]=WMO(WX.cur.c),day=(d,lab)=>d?hl(lab,`${WMO(d.c)[1]}, ${Math.round(d.lo)}–${Math.round(d.hi)}°`,`${d.p}% chance of rain.`):"";
+  const N=nightWin(),now=Date.now(),cl=cloudBetween(Math.max(now,N.dusk||D.today.set||now),N.dawn||D.tomorrow.rise||now+12*36e5);
+  infoSheet(`Weather in ${esc(D.name)}`,`${Math.round(WX.cur.t)}° · ${w}`,day(WX.d[0],"Today")+day(WX.d[1],"Tomorrow")+
+   (cl!=null?sec("For stargazing",`${cloudLine(cl)} Cloud cover about ${Math.round(cl/5)*5}%.`):"")+
+   `<p class="soft" style="margin-top:14px">Forecast by <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo.com</a>, updated ${fmt(WX.at)}.</p>`)}
+function wxMorning(){if(!wxOk())return"";const d=WX.d[0];return ` Today: ${WMO(d.c)[1].toLowerCase()}, ${Math.round(d.lo)}–${Math.round(d.hi)}°.${d.p>=50?" Take a coat.":""}`}
 
 /* plain-English explainers and event pop-outs */
 const MOONSTORY={
@@ -694,11 +773,17 @@ const dayF=new Intl.DateTimeFormat("en-GB",{timeZone:TZ,weekday:"long",day:"nume
 const inDays=t=>{const d=Math.round((midOf(t)-D.mid)/DAY);return d<=0?"Tonight":d===1?"Tomorrow":`In ${d} days`};
 function fullRise(t){const eve=midOf(t)+(parts(t).hour<12?-12:12)*36e5,r=moonRiseSet(eve,D.lat,D.lon).rise;return r?{t:r,dir:dirWord(moonPos(r+10*6e4,D.lat,D.lon).az),when:midOf(r)===midOf(t)?fmt(r):`${fmt(r)} on ${dayF.format(new Date(r))}`}:null}
 function openTerm(k,arg){const now=Date.now(),{today,name}=D;
+ if(k==="sunrise"||k==="sunset"){const isR=k==="sunrise",{yesterday,tomorrow}=D,ch=today.len-yesterday.len,sx=Math.round(Math.abs(ch)/1000),chs=`${Math.floor(sx/60)} min ${sx%60} s`;
+  const nx=isR?(today.rise>now?today.rise:tomorrow.rise):(today.set>now?today.set:tomorrow.set);
+  return infoSheet(`${isR?"Sunrise":"Sunset"} in ${esc(name)}`,isR?"Sunrise":"Sunset",
+   hl(midOf(nx)===D.mid?"Today":"Tomorrow",fmt(nx),`${hm(today.len)} of daylight today: ${chs} ${ch<0?"less":"more"} than yesterday.`)+
+   sec("How it’s timed",isR?"Sunrise is the moment the top edge of the Sun clears a flat horizon. Hills, buildings and trees can make your own sunrise a few minutes later.":"Sunset is the moment the top edge of the Sun disappears. Our air bends sunlight, so you see the Sun for a couple of minutes after it has really dropped below the horizon.")+
+   sec("Why it changes",ch<0?"The days shrink until the winter solstice, around 21 December. They change fastest near the equinoxes in March and September: by almost 4 minutes a day in London and over 5 in Shetland.":"The days grow until the summer solstice, around 21 June. They change fastest near the equinoxes in March and September: by almost 4 minutes a day in London and over 5 in Shetland."))}
  if(k==="golden")return infoSheet("For photos and evening walks","Golden hour",
   hl(`Today in ${esc(name)}`,today.goldPM?`${fmt(today.goldPM)} until sunset at ${fmt(today.set)}`:"Not today","")+
   sec("What it is","The last hour or so before sunset, and the first after sunrise. The sun is low, so its light passes through more air: shadows soften, colours warm up and everything glows.")+
   sec("How we time it","Light Left counts golden hour from when the sun drops below 6° above the horizon until it sets. It lasts longer in winter and the further north you are, because the sun sinks at a shallower angle."));
- if(k==="dark"){const N=NIGHT||{};return infoSheet("What astronomers call astronomical darkness","Dark sky",
+ if(k==="dark"){const N=nightWin();return infoSheet("What astronomers call astronomical darkness","Dark sky",
   hl(`Tonight in ${esc(name)}`,N.dusk?`${fmt(N.dusk)} – ${fmt(N.dawn)}`:"No true darkness tonight","")+
   sec("What it is","After sunset the sky darkens in stages. Once the sun is more than 18° below the horizon, the last trace of twilight has gone and the sky is as dark as it gets.")+
   sec("Why it matters","Faint stars, the Milky Way and meteors show best then. Get away from street lights and give your eyes 20 minutes to adjust.")+
@@ -750,14 +835,17 @@ function nightLine(now){if(!NIGHT)return;const {dusk,dawn,rise}=NIGHT,m=moonPhas
 function renderNight(){if(!D)return;const now=Date.now(),{name,lat,lon,today,tomorrow,yesterday}=D,ph=moonPhase(now),mm=parts(now).month-1;
   const c=document.getElementById("bigmoon").getContext("2d");c.clearRect(0,0,240,240);drawMoonCtx(c,120,120,74,ph.p);
   const ev=phasesBetween(now,now+75*DAY),nf=ev.find(x=>x.full),nn=ev.find(x=>!x.full);
-  document.getElementById("nmName").innerHTML=`<button type="button" class="term" data-term="phase">${ph.name} <i class="qi" aria-hidden="true">?</i></button>`;
-  {const fn=nf?fullName(nf.t):"";document.getElementById("nmTxt").innerHTML=`${Math.round(ph.ill*100)}% lit. ${nf?`The <button type="button" class="term" data-term="moonname" data-arg="${fn}">${fn} <i class="qi" aria-hidden="true">?</i></button> is full on ${dateF.format(new Date(nf.t))}.`:""}`}
+  document.getElementById("nmName").innerHTML=`<button type="button" class="term" data-term="phase">${ph.name}</button>`;
+  {const fn=nf?fullName(nf.t):"";document.getElementById("nmTxt").innerHTML=`${Math.round(ph.ill*100)}% lit. ${nf?`The <button type="button" class="term" data-term="moonname" data-arg="${fn}">${fn}</button> is full on ${dateF.format(new Date(nf.t))}.`:""}`}
   const rs=moonRiseSet(now,lat,lon);
   document.getElementById("nmRise").textContent=rs.up?`Up now${rs.set?`, sets at ${fmt(rs.set)}`:""}.`:`${rs.rise?`Rises at ${fmt(rs.rise)}`:"Doesn’t rise again today"}${rs.set?`, sets at ${fmt(rs.set)}`:""}.`;
   const beforeRise=today.rise&&now<today.rise,dusk=beforeRise?yesterday.dusk:today.dusk,dawn=dusk?cross(dusk,dusk+14*36e5,lat,lon,-18,true):null;NIGHT={dusk,dawn,rise:beforeRise?today.rise:tomorrow.rise};nightLine(now);
   document.getElementById("nDark").textContent=dusk?`${fmt(dusk)} – ${fmt(dawn)}`:"No true darkness tonight";
-  document.getElementById("nDarkNote").textContent=dusk?(ph.ill>0.7?"A bright moon will hide fainter stars, so stick to the brightest patterns.":ph.ill<0.25?"Little moonlight, so a good night for faint stars and the Milky Way.":`The moon is ${Math.round(ph.ill*100)}% lit. Look away from it for the faintest stars.`):"In summer the sun doesn’t sink far enough here for a fully dark sky. Bright stars still show.";
+  {const cl=cloudBetween(Math.max(now,dusk||now),dawn||NIGHT.rise||now+12*36e5);document.getElementById("nDarkNote").textContent=(cl!=null?cloudLine(cl)+" ":"")+(dusk?(ph.ill>0.7?"A bright moon will hide fainter stars, so stick to the brightest patterns.":ph.ill<0.25?"Little moonlight, so a good night for faint stars and the Milky Way.":`The moon is ${Math.round(ph.ill*100)}% lit. Look away from it for the faintest stars.`):"In summer the sun doesn’t sink far enough here for a fully dark sky. Bright stars still show.")};
   document.getElementById("consts").innerHTML=MONTHS[mm].map(([k,n,w,t])=>{const lt=liveTag(k);return `<button type="button" class="const" data-k="${k}" aria-label="${n}: more about it">${figSVG(k)}<b>${n}</b><span class="live${lt.startsWith("Below")?" down":""}">${lt}</span><span>${w}. ${t}</span><i class="more">Where and how to see it ›</i></button>`}).join("");
+  {const mk=new Set(MONTHS[mm].map(x=>x[0])),rest=Object.keys(CINFO).filter(k=>!mk.has(k)&&FIG[k]).sort((a,b)=>constNow(b).alt-constNow(a).alt),sb=document.getElementById("seeAll");
+   sb.textContent=showAll?"Show fewer":`See ${rest.length} more star patterns`;sb.setAttribute("aria-expanded",showAll);
+   if(showAll)document.getElementById("consts").insertAdjacentHTML("beforeend",rest.map(k=>{const c=CINFO[k],lt=liveTag(k);return `<button type="button" class="const" data-k="${k}" aria-label="${esc(c.name)}: more about it">${figSVG(k)}<b>${esc(c.name)}</b><span class="live${lt.startsWith("Below")?" down":""}">${lt}</span><span>${esc(c.what)}.</span><i class="more">Where and how to see it ›</i></button>`}).join(""))}
   // coming up
   const items=ev.map(x=>{const nm=x.full?fullName(x.t):"";return {t:x.t,kind:x.full?"full":"new",name:nm,title:x.full?`Full moon · ${nm}`:"New moon",sub:x.full?"Bright all night, rising around sunset.":"The darkest skies of the month."}});
   const y=parts(now).year;
@@ -772,6 +860,8 @@ function setNight(on){nightMode=on;if(!on)closeConst();buzz();document.querySele
   document.getElementById("nightBtn").setAttribute("aria-pressed",on);document.getElementById("redlight").hidden=!(on&&redOn);document.body.classList.toggle("redmode",on&&redOn);
   if(on){renderNight();document.getElementById("nightui").scrollTop=0;document.getElementById("backBtn").focus()}else document.getElementById("nightBtn").focus();draw(performance.now())}
 document.getElementById("nightBtn").onclick=()=>setNight(true);
+document.getElementById("seeAll").onclick=()=>{showAll=!showAll;buzz();renderNight()};
+document.getElementById("wx").onclick=openWx;
 document.getElementById("backBtn").onclick=()=>setNight(false);
 document.getElementById("redBtn").onclick=()=>{redOn=!redOn;store("ll-red",redOn);buzz();document.getElementById("redBtn").setAttribute("aria-pressed",redOn);document.getElementById("redlight").hidden=!(nightMode&&redOn);document.body.classList.toggle("redmode",nightMode&&redOn)};
 document.getElementById("redBtn").setAttribute("aria-pressed",redOn);
@@ -845,7 +935,7 @@ function tab(which){const sky=which==="sky";document.getElementById("skyView").h
   document.getElementById("tabSky").setAttribute("aria-selected",sky);document.getElementById("tabAl").setAttribute("aria-selected",which==="al");if(sky){resize();draw(performance.now())}else if(which==="al")renderList()}
 document.getElementById("tabSky").onclick=()=>tab("sky");document.getElementById("tabAl").onclick=()=>tab("al");document.getElementById("tabPe").onclick=()=>tab("pe");
 
-prunePeople();compute();resize();tick();draw(0);renderAway();firstRun();setInterval(tick,1000);setInterval(renderList,60000);requestAnimationFrame(loop);keepAwake();
+prunePeople();compute();resize();tick();draw(0);renderAway();firstRun();setInterval(tick,1000);setInterval(renderList,60000);requestAnimationFrame(loop);keepAwake();loadWx();setInterval(()=>loadWx(),30*6e4);
 </script>
 
 <script>

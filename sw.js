@@ -1,5 +1,5 @@
 // Light Left offline support. Change the version name whenever you upload a new copy.
-const CACHE = "light-left-v1";
+const CACHE = "light-left-v2";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "favicon.png", "privacy.html"];
 
 self.addEventListener("install", e => {
@@ -13,8 +13,11 @@ self.addEventListener("activate", e => {
 });
 
 // Show the saved copy straight away, and quietly fetch a fresh one for next time.
+// Only this site and its fonts are saved; live data such as the weather always comes fresh.
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  const host = new URL(e.request.url).hostname;
+  if (host !== self.location.hostname && !host.endsWith("fonts.googleapis.com") && !host.endsWith("fonts.gstatic.com")) return;
   e.respondWith(caches.open(CACHE).then(async cache => {
     const saved = await cache.match(e.request, { ignoreSearch: true });
     const fresh = fetch(e.request).then(res => {
